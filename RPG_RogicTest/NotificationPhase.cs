@@ -1,6 +1,6 @@
 ﻿using System;
 
-abstract public class Notification(GameId<INotificationId> notifyID, Phase phase, string messageLog, bool isForced)
+abstract public class Notification(GameId<INotificationId> notifyID, Phase phase, NotifyStackType stackType, string messageLog, bool isForced)
 {
 	public GameId<INotificationId> NotifyID { get; init; } = notifyID;
 	public string MessageLog { get; set; } = messageLog;
@@ -8,13 +8,18 @@ abstract public class Notification(GameId<INotificationId> notifyID, Phase phase
 	public int RemainTime { get;private set; }
 	public bool IsForcedAction { get; init; } = isForced;
 	public Phase Phase { get; init; } = phase;
+	public NotifyStackType StackType { get; init; } = stackType;
 
-	virtual public void Initialize(Entity owner, int remainTime)
+    virtual public void Initialize(Entity owner, int remainTime)
 	{
 		Owner = owner;
 		RemainTime = remainTime;
 	}
-	abstract public bool CheckMet(Phase currentPhase, ActionUnit? actionUnit, Entity? currentTarget);
+	public void SetRemainTime(int remainTime)
+	{
+		RemainTime = remainTime;
+    }
+    abstract public bool CheckMet(Phase currentPhase, ActionUnit? actionUnit, Entity? currentTarget);
 
 	public void OnNotify(BattleManager battleManager, Phase currentPhase, ActionUnit? actionUnit, Entity? currentTarget)
 	{
@@ -53,8 +58,9 @@ abstract public class Notification(GameId<INotificationId> notifyID, Phase phase
 	}
 }
 
-public class NullNotify(GameId<INotificationId> notifyID, string logMassage, Phase phase = Phase.None, bool isForced = false) 
-	: Notification(notifyID, phase, logMassage, isForced)
+public class NullNotify(GameId<INotificationId> notifyID, string logMassage, Phase phase = Phase.None, 
+	NotifyStackType stackType = NotifyStackType.Independent, bool isForced = false) 
+	: Notification(notifyID, phase, stackType, logMassage, isForced)
 {
     public override bool CheckMet(Phase currentPhase, ActionUnit? actionUnit, Entity? currentTarget)
     {
@@ -66,8 +72,9 @@ public class NullNotify(GameId<INotificationId> notifyID, string logMassage, Pha
 		return null;
     }
 }
-public class CounterNotify(GameId<INotificationId> notifyID, string logMassage, Phase phase, bool isForced, int rate, float multiple, bool onAvoid)
-	: Notification(notifyID, phase, logMassage, isForced)
+public class CounterNotify(GameId<INotificationId> notifyID, string logMassage, Phase phase, 
+	NotifyStackType stackType, bool isForced, int rate, float multiple, bool onAvoid)
+	: Notification(notifyID, phase, stackType, logMassage, isForced)
 {
     int counterRate { get; init; } = rate;
     float counterMultiple { get; init; } = multiple;
@@ -89,7 +96,7 @@ public class CounterNotify(GameId<INotificationId> notifyID, string logMassage, 
 		{
 			return null;
 		}
-		if(counterRate >= rdm)
+		if(counterRate < rdm)
 		{
 			return null;
 		}
@@ -97,13 +104,13 @@ public class CounterNotify(GameId<INotificationId> notifyID, string logMassage, 
         ActionUnit action = 
 			new ActionUnit(ActionType.Attack, Owner, actionUnit.Executor, guid:Guid.NewGuid(), damageInfo:damageInfo, isForced:IsForcedAction);
         action.SetContent($"--{Owner.Name}のカウンター！");
-
         return action;
     }
 }
 
-public class PoisonNotify(GameId<INotificationId> notifyID, string logMassage, Phase phase, bool isForced, int rate, bool isFixed, bool referMax) 
-	: Notification(notifyID, phase, logMassage, isForced)
+public class PoisonNotify(GameId<INotificationId> notifyID, string logMassage, Phase phase,
+	NotifyStackType stackType, bool isForced, int rate, bool isFixed, bool referMax) 
+	: Notification(notifyID, phase, stackType, logMassage, isForced)
 {
     int poisonRate { get; init; } = rate;
     bool IsFixed { get; init; } = isFixed;

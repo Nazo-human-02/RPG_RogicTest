@@ -42,11 +42,6 @@ public static class ActionUnitCreator
 	}
 }
 
-public static class BattleEventBus
-{
-	public static Action<ActionUnit>? OnRequestInterrupt;
-	public static Action<ActionUnit, int>? OnRequestStackAction;
-}
 public class BattleManager
 {
 	public BattleSession Session => _battleSession;
@@ -59,15 +54,10 @@ public class BattleManager
 	public BattleManager(IReadOnlySet<CharacterBase> party, List<EnemyCharacter> enemies)
 	{
         _battleSession = new BattleSession(party, enemies);
-		BattleEventBus.OnRequestInterrupt += InsertInterruptAction;
-		BattleEventBus.OnRequestStackAction += StackInterruptAction;
     }
 	public void Dispose()
 	{
-		BattleEventBus.OnRequestInterrupt -= InsertInterruptAction;
-		BattleEventBus.OnRequestStackAction -= StackInterruptAction;
-
-		foreach (Entity party in _battleSession.Party) party.Notifications.Clear();
+		foreach (Entity party in _battleSession.Party) party.Notifications.ClearNotify();
 	}
     public BattleResultType BattleStart()
 	{
@@ -102,8 +92,8 @@ public class BattleManager
 
             (isOver, result) = _battleSession.IsBattleOver();
 			ActionExecutor.ClearLogCache();
-			foreach(Entity enemy in _battleSession.GetAliveEnemy()) foreach(Notification notify in enemy.Notifications) notify.ReduceRemainTime();
-			foreach(Entity party in _battleSession.GetAliveParty()) foreach(Notification notify in party.Notifications) notify.ReduceRemainTime();
+			foreach(Entity enemy in _battleSession.GetAliveEnemy()) enemy.Notifications.TickNotify();
+			foreach(Entity party in _battleSession.GetAliveParty()) party.Notifications.TickNotify();
         }
 
         CheckBattleResult(result);
@@ -184,7 +174,7 @@ public class BattleManager
 			{
 				continue;
 			}
-			ActionExecutor.ExecuteAction(currentAction);
+			ActionExecutor.ExecuteAction(currentAction, this);
 		}
 	}
 
@@ -325,15 +315,11 @@ public static class BattleNotification
 			{
 				continue;
 			}
-			foreach(Notification notification in entity.Notifications)
+			if(_battleManager == null)
 			{
-				if(_battleManager == null || notification.RemainTime == 0)
-				{
-					continue;
-				}
-				notification.OnNotify(_battleManager, phase, actionUnit, currentTarget);
-			}
-			entity.Notifications.RemoveAll(notify => notify.RemainTime == 0);
+				continue;
+            }
+            entity.Notifications.ExecuteNotifies(_battleManager, phase, actionUnit, currentTarget);
 		}
 	}
 }

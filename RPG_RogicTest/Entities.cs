@@ -5,7 +5,7 @@ public abstract class Entity : IEquipable, ITalkable
     public Dictionary<BodyParts, Equipment> Equipments { get => equipments; set => equipments = value; }
     private Dictionary<BodyParts, Equipment> equipments = new();
 
-    public List<Notification> Notifications { get; set; } = new();
+    public NotificationContainer Notifications { get; set; } = new();
 
     public HashSet<Skill> ValidSkills { get; set; } = new();
     public string? Name { get; protected set; }
@@ -70,7 +70,7 @@ public abstract class Entity : IEquipable, ITalkable
 
     public void AddNotify(Notification notification)
     {
-        Notifications.Add(notification);
+        Notifications.AddNotify(notification);
     }
     public void SetSkill(GameId<ISkillId> skillId)
     {
@@ -85,7 +85,7 @@ public abstract class Entity : IEquipable, ITalkable
     {
         if(Stat.IsDead)
         {
-            Notifications.Clear();
+            Notifications.ClearNotify();
             if (this is EnemyCharacter)
             {
                 LogWrite.Log($"{Name}を倒した！");
@@ -135,7 +135,7 @@ public abstract class Entity : IEquipable, ITalkable
             };
         }
         clone.ValidSkills = new HashSet<Skill>(this.ValidSkills);
-        clone.Notifications = new List<Notification>();
+        clone.Notifications = new();
 
         return clone;
     }

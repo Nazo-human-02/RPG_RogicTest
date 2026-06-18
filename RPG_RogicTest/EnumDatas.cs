@@ -7,7 +7,7 @@ public enum EnemyType { Normal, Boss };
 public enum ActionType { Attack, Skill, Guard, Escape};
 public enum DamageType { Physical, Magical, Dot, Heal, None};
 public enum SkillType { Active, Passive};
-public enum NotifyStackType { Refresh, Independent, Ignore, Replace}
+public enum NotifyStackType { Refresh, Independent, Ignore, Replace}　//Notifyの重複処理タイプ
 public enum CostType { CurrentMP, CurrentHP, MaxMP, MaxHP};
 public enum TargetType { All, Ally, Enemy, Self};
 public enum EntityID {Hero, Npc, Slime, Goblin, Dragon }; //IDに置換

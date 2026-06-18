@@ -142,6 +142,82 @@ public class Equipment
     public BodyParts bodyParts;
 }
 
+public class NotificationContainer
+{
+    public IReadOnlyList<Notification> Notifications => _notifications;
+    private readonly List<Notification> _notifications = new List<Notification>();
+
+    public void AddNotify(Notification notification)
+    {
+        bool isExisting = IsExistNotify(notification.NotifyID);
+        if(!isExisting)
+        {
+            _notifications.Add(notification);
+            return;
+        }
+        switch (notification.StackType)
+        {
+            case NotifyStackType.Independent:
+                _notifications.Add(notification);
+                break;
+            case NotifyStackType.Refresh:
+                var notify = GetNotify(notification.NotifyID);
+                notify?.SetRemainTime(Math.Max(notification.RemainTime, notify.RemainTime));
+                break;
+            case NotifyStackType.Ignore:
+                break;
+
+            default:
+                break;
+        }
+    }
+    public void RemoveNotify(GameId<INotificationId> notifyID)
+    {
+        var notification = Notifications.FirstOrDefault(n => n.NotifyID.Equals(notifyID));
+        if (notification != null)
+        {
+            _notifications.Remove(notification);
+        }
+    }
+
+    public void ExecuteNotifies(BattleManager battleManager, Phase currentPhase, ActionUnit? actionUnit, Entity? currentTarget)
+    {
+        foreach(var notify in Notifications.ToList())
+        {
+            notify.OnNotify(battleManager, currentPhase, actionUnit, currentTarget);
+            //LogWrite.Log($"通知[{notify.NotifyID}]が発動試行した");
+        }
+        _notifications.RemoveAll(n => n.RemainTime == 0);
+    }
+    public void TickNotify()
+    {
+        foreach(var notify in Notifications.ToList())
+        {
+            if(notify.RemainTime > 0)
+            {
+                notify.ReduceRemainTime();
+            }
+            if(notify.RemainTime == 0)
+            {
+                RemoveNotify(notify.NotifyID);
+            }
+        }
+    }
+
+    public bool IsExistNotify(GameId<INotificationId> notifyID)
+    {
+        return Notifications.Any(n => n.NotifyID.Equals(notifyID));
+    }
+    public Notification? GetNotify(GameId<INotificationId> notifyID)
+    {
+        return Notifications.FirstOrDefault(n => n.NotifyID.Equals(notifyID));
+    }
+
+    public void ClearNotify()
+    {
+        _notifications.Clear();
+    }
+}
 
 
 #endregion

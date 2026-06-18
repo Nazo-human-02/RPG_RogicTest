@@ -81,7 +81,7 @@ public static class RpgMainRogic
             enemy.AddNotify(notify);
             Console.WriteLine($"Lv{enemy.Stat.expSet.CurrentLevel}:{enemy.Name}," +
                 $"[ステータス]最大HP:{enemy.Stat.MaxHp},最大MP:{enemy.Stat.MaxMp}," +
-                $"攻撃力:{enemy.Stat.baseStat.Atk},防御力:{enemy.Stat.baseStat.Def},敏捷:{enemy.Stat.baseStat.Agi},状態個数:{enemy.Notifications.Count}");
+                $"攻撃力:{enemy.Stat.baseStat.Atk},防御力:{enemy.Stat.baseStat.Def},敏捷:{enemy.Stat.baseStat.Agi},状態個数:{enemy.Notifications.Notifications.Count}");
         }
 		return enemies;
     }
@@ -92,8 +92,8 @@ public static class RpgMainRogic
         foreach (var party in PartyController.PartyMember)
         {
             Console.WriteLine($"Lv{party.Stat.expSet.CurrentLevel}:{party.Name}, 最大HP:{party.Stat.MaxHp}");
-            Console.WriteLine($"状態個数:{party.Notifications.Count}");
-            foreach (var not in party.Notifications)
+            Console.WriteLine($"状態個数:{party.Notifications.Notifications.Count}");
+            foreach (var not in party.Notifications.Notifications)
             {
                 if (not.Owner == null)
                 {

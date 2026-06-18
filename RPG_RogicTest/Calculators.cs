@@ -82,7 +82,7 @@ public static class ActionExecutor
     {
         _loggedAction.Clear();
     }
-    public static void ExecuteAction(ActionUnit[] actionUnits)
+    public static void ExecuteAction(ActionUnit[] actionUnits, BattleManager battleManager)
     {
         if (!string.IsNullOrEmpty(actionUnits[0].OnExecuteContent) && !_loggedAction.Contains(actionUnits[0].Guid))
         {
@@ -118,7 +118,7 @@ public static class ActionExecutor
                     break;
 
                 case ActionType.Skill:
-                    SkillAction(actionUnit, actionUnit.Executor, loopCount);
+                    SkillAction(battleManager, actionUnit, actionUnit.Executor, loopCount);
                     break;
 
                 case ActionType.Escape:
@@ -163,7 +163,7 @@ public static class ActionExecutor
         BattleNotification.TriggerPhase(Phase.AfterGuard, actionUnit, guarder); //ガード直後
     }
 
-    private static void SkillAction(ActionUnit actionUnit, Entity executor, int loopNum)
+    private static void SkillAction(BattleManager battleManager, ActionUnit actionUnit, Entity executor, int loopNum)
     {
         BattleNotification.TriggerPhase(Phase.BeforeSkill, actionUnit, executor);
 
@@ -177,11 +177,31 @@ public static class ActionExecutor
         }
         else
         {
-            actionUnit.Skill.ExecuteSkill(actionUnit, actionUnit.Target);
-            if (loopNum == 1 && !_loggedAction.Contains(actionUnit.Guid)) 
-            { 
-                LogWrite.Log($"--{executor.Name}の{actionUnit.Skill.Name}!");
-                actionUnit.Skill.SetCoolTime();
+            if (actionUnit.Skill is ActiveSkill activeSkill)
+            {
+                bool success = activeSkill.TryPayCost(executor);
+                if (!success)
+                {
+                    LogWrite.Log($"--しかしコストが足りなかった");
+                }
+                else
+                {
+                    actionUnit.Skill.ExecuteSkill(battleManager, actionUnit, actionUnit.Target);
+                    if (loopNum == 1 && !_loggedAction.Contains(actionUnit.Guid))
+                    {
+                        LogWrite.Log($"--{executor.Name}の{actionUnit.Skill.Name}!");
+                        actionUnit.Skill.SetCoolTime();
+                    }
+                }
+            }
+            else
+            {
+                actionUnit.Skill.ExecuteSkill(battleManager, actionUnit, actionUnit.Target);
+                if (loopNum == 1 && !_loggedAction.Contains(actionUnit.Guid))
+                {
+                    LogWrite.Log($"--{executor.Name}の{actionUnit.Skill.Name}!");
+                    actionUnit.Skill.SetCoolTime();
+                }
             }
         }
 
