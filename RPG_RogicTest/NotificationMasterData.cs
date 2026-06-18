@@ -15,6 +15,14 @@ static public class NotificationMasterData
         _notifyDict["notify_003"] = new CounterNotifyData("notify_003", Phase.OnDeath, NotifyStackType.Refresh, "{0}の悪あがき!", 4, true, 100, 10f, true);
     }
 
+    public static BaseNotifyData GetNotifyData(GameId<INotificationId> notifyID)
+    {
+        if(!NotifyDataDict.TryGetValue(notifyID, out var notifyData))
+        {
+            throw new Exception($"通知ID:{notifyID}のデータが見つかりません");
+        }
+        return notifyData;
+    }
 }
 
 

@@ -2,7 +2,7 @@
 
 #region データコンテナ
 
-public class BattleStat
+public class BattleStat()
 {
     public ExpSet expSet { get; set; } = new ExpSet();
     public int CurrentHp { get; set; } = 100;
@@ -22,7 +22,7 @@ public class BattleStat
     public float TotalCri => TotalModSet.CriMod.TotalFloat(baseStat.Cri);
     public bool IsDead => CurrentHp <= 0;
 
-    public void TakeDamage(ActionUnit? actionUnit, Entity target, int dmg)
+    public bool TakeDamage(ActionUnit? actionUnit, Entity target, int dmg) //ダメージを受ける。死亡した場合はtrueを返す
     {
         CurrentHp -= dmg;
 
@@ -33,13 +33,14 @@ public class BattleStat
             if(IsDead)
             {
                 target.OnDeath();
-                return;
+                return true;
             }
         }
         BattleNotification.TriggerPhase(Phase.OnHitDamage, actionUnit, target);
+        return false;
     }
 }
-public class ExpSet
+public class ExpSet()
 {
     public int CurrentLevel { get; set; } = 1;
     public int CurrentExp { get; set; } = 0;
@@ -51,7 +52,7 @@ public class ExpSet
         return (int)(CurrentLevel * 100 * ExpModifier);
     }
 
-    public void GetExp(Entity entity,int exp)
+    public ExpResult GetExp(Entity entity,int exp)
     {
         TotalExp += exp;
         CurrentExp += exp;
@@ -63,13 +64,8 @@ public class ExpSet
             CurrentLevel++;
             isLevelUp = true;
         }
-        LogWrite.Log($"{entity.Name}は[{exp}exp]獲得した");
-        if(isLevelUp)
-        {
-            LogWrite.Log($"{entity.Name}はレベルアップした!:[Lv{currentLevel}]--->[Lv{CurrentLevel}]");
-            entity.UpdateStat();
-        }
-
+        if(isLevelUp) entity.UpdateStat();
+        return new ExpResult(exp, isLevelUp, currentLevel, CurrentLevel);
     }
 
     public void SetLevel(int level)
@@ -78,6 +74,7 @@ public class ExpSet
     }
 
 }
+public record ExpResult(int GetExp, bool IsLevelUp, int BeforeLevel, int AfterLevel);
 public class BaseStat
 {
     public int Atk { get; set; } = 10;
@@ -225,7 +222,8 @@ public class NotificationContainer
 #region 行動単位
 
 public class ActionUnit(ActionType actionType, Entity executor, Entity target, 
-    Skill? skill = null, UnitGuid? unitGuid = null, Guid? guid = null, DamageType? damageType = null, DamageInfo? damageInfo = null, bool? isForced = null)
+    Skill? skill = null, UnitGuid? unitGuid = null, Guid? guid = null, DamageType? damageType = null, DamageInfo? damageInfo = null, 
+    ApplyNotifyInfo? notifyInfo = null, bool? isForced = null)
 {
     public UnitGuid ActionGuid { get; init; } = unitGuid ?? new UnitGuid();
     public Guid Guid { get; init; } = guid ?? Guid.NewGuid();
@@ -234,6 +232,7 @@ public class ActionUnit(ActionType actionType, Entity executor, Entity target,
     public ActionType ActionType { get; init; } = actionType;
     public DamageType DamageType { get; init; } = damageType ?? DamageType.Physical;
     public DamageInfo DamageInfo { get; init; } = damageInfo ?? new DamageInfo();
+    public ApplyNotifyInfo ApplyNotifyInfo { get; init; } = notifyInfo ?? new ApplyNotifyInfo();
     public string OnExecuteContent { get; private set; } = string.Empty;
     public Skill? Skill { get; init; } = skill;
     public bool IsForced { get; init; } = isForced ?? false;
@@ -249,34 +248,32 @@ public class DamageInfo()
 
 }
 
-public class ApplyNotifyInfo(GameId<INotificationId> notifyID, int applyRate = 0, string? content = null)
+public class ApplyNotifyInfo()
 {
-    public GameId<INotificationId> NotifyID { get; init; } = notifyID;
-    public int ApplyRate { get; private set; } = applyRate;
-    public string OnApplyContent = content ?? string.Empty;
+    public GameId<INotificationId> NotifyID;
+    public int ApplyRate;
+    public string? OnApplyContent;
 
-    public bool TryApplyNotify(ActionUnit actionUnit, Entity target)
+    public ApplyNotifyResult TryApplyNotify(IRandomProvider random, ActionUnit actionUnit, Entity target)
     {
-        if(target.Stat.IsDead)
+        if(NotifyID.IsEmpty || target.Stat.IsDead)
         {
-            return false;
+            return new ApplyNotifyResult(false, null);
         }
-        int rdm = Random.Shared.Next(1, 101);
+        int rdm = random.GetRandomInt(1, 101);
 
         if(rdm <= ApplyRate)
         {
             Notification notification = NotifyCreator.Creator(NotifyID, target);
             target.AddNotify(notification);
 
-            if(!string.IsNullOrEmpty(OnApplyContent))
-            {
-                LogWrite.Log(string.Format(OnApplyContent, target.Name, actionUnit.Executor.Name));
-            }
-            return true;
+            string? context = (string.IsNullOrEmpty(OnApplyContent)) ? null : string.Format(OnApplyContent, target.Name, actionUnit.Executor.Name);
+            return new ApplyNotifyResult(true, context);
         }
-        return false;
+        return new ApplyNotifyResult(false, null);
     }
 }
+public record ApplyNotifyResult(bool Success, string? Context);
 public class UnitGuid
 {
     public Dictionary<Phase, HashSet<Entity>> ProcessedEntities { get; set; } = new Dictionary<Phase, HashSet<Entity>>();

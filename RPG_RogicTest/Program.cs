@@ -1,15 +1,16 @@
 ﻿using System;
 
 //パーティー管理,操作
-public static class PartyController
+public class PartyController(ILogProvider logProvider)
 {
-    public static IReadOnlySet<CharacterBase> PartyMember => _partyMember;
-    private static readonly HashSet<CharacterBase> _partyMember = new();
-    static int MaxPartyMember = 4;
-    public static int OwnedGold { get; private set; } = 0;
+    public IReadOnlySet<CharacterBase> PartyMember => _partyMember;
+    private readonly HashSet<CharacterBase> _partyMember = new();
+    private readonly ILogProvider log = logProvider;
+    const int MaxPartyMember = 4; //パーティーメンバー,増えるかも
+    public int OwnedGold { get; private set; } = 0;
     
 
-    public static void AddMember(CharacterBase chara)
+    public void AddMember(CharacterBase chara)
     {
         if(!_partyMember.Contains(chara))
         {
@@ -22,7 +23,7 @@ public static class PartyController
         }
     }
 
-    public static void RemoveMember(CharacterBase chara)
+    public void RemoveMember(CharacterBase chara)
     {
         if(_partyMember.Contains(chara))
         {
@@ -31,31 +32,37 @@ public static class PartyController
         }
     }
 
-    static void ChangeMember()
+    void ChangeMember()
     {
         //選択してキャラをRemoveする処理
     }
 
-    public static void GetReward(DropRewardData dropRewardData)
+    public void GetReward(DropRewardData dropRewardData)
     {
         AddGold(dropRewardData.Gold);
-        LogWrite.Log($"_____戦利品を獲得した_____");
-        LogWrite.Log($"～{dropRewardData.Gold}G手に入れた！(所持金{OwnedGold})～");
+        log.Log($"_____戦利品を獲得した_____");
+        log.Log($"～{dropRewardData.Gold}G手に入れた！(所持金{OwnedGold})～");
         foreach(Entity entity in PartyMember)
         {
             if(entity.Stat.IsDead)
             {
                 continue;
             }
-            entity.Stat.expSet.GetExp(entity, dropRewardData.Exp);
+            ExpResult expResult = entity.Stat.expSet.GetExp(entity, dropRewardData.Exp);
+            string text = $"{entity.Name}:{expResult.GetExp}exp獲得!";
+            if(expResult.IsLevelUp)
+            {
+                text += $"レベルアップ！{expResult.BeforeLevel}→{expResult.AfterLevel}";
+            }
+            log.Log(text);
         }
     }
 
-    public static void AddGold(int gold)
+    public void AddGold(int gold)
     {
         OwnedGold += gold;
     }
-    public static bool SpendGold(int gold)
+    public bool SpendGold(int gold)
     {
         if(OwnedGold < gold)
         {
@@ -81,30 +88,31 @@ public class EnemyCandidate
         SpawnRate = spawnRate;
     }
 
-    public int RamdomLevel()
+    public int RandomLevel(IRandomProvider random)
     {
-        return Random.Shared.Next(MinLevel, MaxLevel + 1);
+        return random.GetRandomInt(MinLevel, MaxLevel + 1);
     }
 }
-public class EnemyCandidateList
+public class EnemyCandidateList(IRandomProvider random)
 {
-    private HashSet<EnemyCandidate> _nomalEnemyCandidates = new HashSet<EnemyCandidate>();
-    private HashSet<EnemyCandidate> _bossEnemyCandidates = new();
+    private readonly IRandomProvider randomProvider = random;
+    private List<EnemyCandidate> _nomalEnemyCandidates = new List<EnemyCandidate>();
+    private List<EnemyCandidate> _bossEnemyCandidates = new List<EnemyCandidate>();
 
-    public List<EnemyCharacter> RamdomSpawnEnemy(int spawnAmount)
+    public List<EnemyCharacter> RandomSpawnEnemy(int spawnAmount)
     {
         List<EnemyCharacter> enemies = new();
         int totalWeight = _nomalEnemyCandidates.Sum(enemy => enemy.SpawnRate);
         for(int i = 0; i < spawnAmount; i++)
         {
             int total = totalWeight;
-            int rdm = Random.Shared.Next(1, totalWeight + 1);
+            int rdm = randomProvider.GetRandomInt(1, totalWeight + 1);
             foreach(EnemyCandidate candidate in _nomalEnemyCandidates)
             {
                 if(rdm <= candidate.SpawnRate )
                 {
                     EnemyCharacter enemy = (EnemyCharacter)candidate.Enemy.Clone();
-                    int level = candidate.RamdomLevel();
+                    int level = candidate.RandomLevel(randomProvider);
                     enemy.Stat.expSet.SetLevel(level);
                     enemy.UpdateStat();
                     enemies.Add(enemy);
@@ -117,7 +125,7 @@ public class EnemyCandidateList
             }
         }
         
-        return AddAlphabet(enemies);
+        return RenameDuplicateenemies(enemies);
     }
 
     public void AddCandidate(GameId<IEnemyId> enemyID, EnemyType enemyType, int minLevel, int maxLevel, int spawnRate)
@@ -135,43 +143,22 @@ public class EnemyCandidateList
         }
     }
 
-    private List<EnemyCharacter> AddAlphabet(List<EnemyCharacter> spawnedList)
+    private List<EnemyCharacter> RenameDuplicateenemies(List<EnemyCharacter> spawnedList)
     {
-        Dictionary<GameId<IBaseStatId>, int> nameCounts = new Dictionary<GameId<IBaseStatId>, int>();
-        foreach (var enemy in spawnedList)
-        {
+        var sortedList = spawnedList.GroupBy(enemy => enemy.EntityID).ToList();
 
-            if (nameCounts.TryGetValue(enemy.EntityID, out int value))
+        foreach(var group in sortedList)
+        {
+            var enemies = group.ToList();
+            if (enemies.Count <= 1)
             {
-                nameCounts[enemy.EntityID] = ++value;
+                continue;
             }
-            else
+            for (int i = 0; i < enemies.Count; i++)
             {
-                nameCounts[enemy.EntityID] = 1;
+                enemies[i].Rename($"{enemies[i].Name}{(char)('A' + i)}");// 'A' + 0 = 'A', 'A' + 1 = 'B' ...
             }
         }
-
-        Dictionary<GameId<IBaseStatId>, int> currentNamingIndices = new Dictionary<GameId<IBaseStatId>, int>();
-
-        foreach (var enemy in spawnedList)
-        {
-            // 1匹しか選ばれなかったモンスターは「A」をつけずそのまま（スライム 等）
-            if (nameCounts[enemy.EntityID] <= 1) continue;
-
-            // 2匹以上いる場合は連番を振る
-            if (!currentNamingIndices.ContainsKey(enemy.EntityID))
-            {
-                currentNamingIndices[enemy.EntityID] = 0; // 0番目＝'A'
-            }
-
-            int index = currentNamingIndices[enemy.EntityID];
-            char alphabet = (char)('A' + index); // 'A' + 0 = 'A', 'A' + 1 = 'B' ...
-
-            enemy.Rename($"{enemy.Name}{alphabet}");
-
-            currentNamingIndices[enemy.EntityID]++;
-        }
-
         return spawnedList;
     }
 }

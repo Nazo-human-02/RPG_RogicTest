@@ -47,24 +47,25 @@ public abstract class ActiveSkill(GameId<ISkillId> id, string skillName, int coo
 
     public int GetRequiredCost(Entity entity)
     {
-        return switch (CostType)
+        if(IsFixed) return Cost;
+
+        return (CostType) switch
         {
-            case CostType.Hp:
-                return IsFixed ? Cost : (int)(entity.Stat.TotalHP * Cost / 100.0f);
-            case CostType.Mp:
-                return IsFixed ? Cost : (int)(entity.Stat.TotalMP * Cost / 100.0f);
-            default:
-                return Cost;
-        }
+            CostType.CurrentHP => (int)(entity.Stat.CurrentHp * Cost / 100.0f),
+            CostType.CurrentMP => (int)(entity.Stat.CurrentMp * Cost / 100.0f),
+            CostType.MaxHP => (int)(entity.Stat.TotalHP * Cost / 100.0f),
+            CostType.MaxMP => (int)(entity.Stat.TotalMP * Cost / 100.0f),
+            _ => Cost,
+        };
     }
     public bool CanUseSkill(Entity entity)
     {
         int requiredCost = GetRequiredCost(entity);
         return CostType switch
         {
-            CostType.Hp => entity.Stat.CurrentHp > requiredCost,
-            CostType.Mp => entity.Stat.CurrentMp >= requiredCost,
-            _ => true,
+            CostType.CurrentHP or CostType.MaxHP => entity.Stat.CurrentHp > requiredCost,
+            CostType.CurrentMP or CostType.MaxMP => entity.Stat.CurrentMp >= requiredCost,
+            _ => false,
         };
     }
     public void PayCost(Entity entity)
@@ -72,10 +73,10 @@ public abstract class ActiveSkill(GameId<ISkillId> id, string skillName, int coo
         int requiredCost = GetRequiredCost(entity);
         switch (CostType)
         {
-            case CostType.Hp:
+            case CostType.CurrentHP or CostType.MaxHP:
                 entity.Stat.CurrentHp -= requiredCost;
                 break;
-            case CostType.Mp:
+            case CostType.CurrentMP or CostType.MaxMP:
                 entity.Stat.CurrentMp -= requiredCost;
                 break;
         }

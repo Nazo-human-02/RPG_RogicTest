@@ -1,130 +1,109 @@
 ﻿using System;
 
-public static class TargetSelect
+public class TargetSelect(ILogProvider log, IInputProvider input)
 {
-    private static HashSet<Entity> _currentSelected = new HashSet<Entity>();
+    private readonly ILogProvider _log = log;
+    private readonly IInputProvider _input = input;
 
-    public static List<Entity> SetSelecting(Entity selecter, BattleSession battleSession, TargetType targetType, int targetAmount)
+    public List<Entity> SelectingTargets(Entity selecter, BattleSession battleSession, TargetType targetType, int targetAmount)
     {
-        _currentSelected.Clear();
         List<Entity> _alltargets = GetTargetsList(selecter, battleSession, targetType);
-        Dictionary<int, Entity> targetCandidates = new Dictionary<int, Entity>();
-        int n = 1;
-        foreach (Entity entity in _alltargets)
+        if(_alltargets.Count <= targetAmount)
         {
-            targetCandidates[n] = entity;
-            n++;
+            return _alltargets;
         }
-        if(targetCandidates.Count <= targetAmount)
-        {
-            return targetCandidates.Values.ToList();
-        }
-        GetSelectedTargetList(targetCandidates, targetAmount);
-        return _currentSelected.ToList();
+        return GetSelectedTargetList(_alltargets, targetAmount);
     }
 
-    private static void GetSelectedTargetList(Dictionary<int, Entity> targetDict, int targetAmount)
+    private List<Entity> GetSelectedTargetList(List<Entity> targetCandidates, int targetAmount)
     {
-        bool isSelectionDone = false;
-        while(!isSelectionDone)
+        List<Entity> currentSelected = new List<Entity>();
+        while (true)
         {
-            SelectionText(targetDict);
+            _log.Log(SelectionText(targetCandidates, currentSelected));
+            string? selectNum = _input.Input();
 
-            Entity? target = GetSelectedTarget(targetDict, targetAmount);
-            if(target == null)
+            if(string.IsNullOrEmpty(selectNum))
             {
-                int rest = targetAmount - _currentSelected.Count;
-                if(rest == 0)
+                var (isDone, content) = TryFinishSelection(currentSelected, targetAmount);
+                if (content != null)
                 {
-                    isSelectionDone = true;
+                    _log.Log(content);
                 }
-                else if (_currentSelected.Count == 0)
+                if (isDone)
                 {
-                    LogWrite.Log("ターゲットの番号を入力してください");
+                    return currentSelected;
                 }
-                else if (rest > 0)
+            }
+            else if(int.TryParse(selectNum, out var result) && result >= 1 && result <= targetCandidates.Count)
+            {
+                var target = targetCandidates[result - 1];
+                if(currentSelected.Contains(target))
                 {
-                    LogWrite.Log($"選択可能数 残り:{rest}");
+                    currentSelected.Remove(target);
                 }
                 else
                 {
-                    LogWrite.Log("選択数が多すぎます");
+                    if(currentSelected.Count < targetAmount)
+                    {
+                        currentSelected.Add(target);
+                    }
+                    else
+                    {
+                        _log.Log("選択可能数を超えます");
+                    }
                 }
-                
-            }
-            else if(_currentSelected.Contains(target))
-            {
-                _currentSelected.Remove(target);
             }
             else
             {
-                if(_currentSelected.Count < targetAmount)
-                {
-                    _currentSelected.Add(target);
-                    int rest = targetAmount - _currentSelected.Count;
-                    LogWrite.Log($"選択可能数 残り:{rest}");
-                }
-                else
-                {
-                    LogWrite.Log("選択可能数を超えます");
-                }
-            }
-            
+                _log.Log("入力が正しくありません");
+            }            
         }
     }
-
-    private static Entity? GetSelectedTarget(Dictionary<int, Entity> targetDict, int targetAmount)
+    private (bool, string?) TryFinishSelection(List<Entity> currentSelected, int targetAmount)
     {
-        string? selectNum = Console.ReadLine();
-        if(string.IsNullOrEmpty(selectNum))
+        if(currentSelected.Count == 0)
         {
-            return null;
+            return (false, "ターゲットの番号を入力してください");
         }
-        if(!int.TryParse(selectNum, out int num)||!targetDict.TryGetValue(num, out var entity))
+        else if(currentSelected.Count < targetAmount)
         {
-            LogWrite.Log("入力が正しくありません");
-            return GetSelectedTarget(targetDict, targetAmount);
-            
+            int rest = targetAmount - currentSelected.Count;
+            return (false, $"選択可能数 残り:{rest}");
         }
-        return entity;
-    }
-
-    private static void SelectionText(Dictionary<int, Entity> targetDict)
-    {
-        string text = "";
-        foreach(var target in targetDict)
+        else if(currentSelected.Count == targetAmount)
         {
-            bool isSelected = _currentSelected.Contains(target.Value);
-            string t = (isSelected) ? "選択中" : "未選択";
-            text += $"[{target.Key.ToString()}:{target.Value.Name}(HP:{target.Value.Stat.CurrentHp}/{target.Value.Stat.MaxHp},{t})]";
-        }
-        text += "\nEnterキーで確定";
-        LogWrite.Log(text);
-    }
-
-    private static List<Entity> GetTargetsList(Entity selecter, BattleSession battleSession, TargetType targetType)
-    {
-        if(selecter is EnemyCharacter)
-        {
-            return targetType switch
-            { 
-                TargetType.Enemy => battleSession.GetAliveParty().Cast<Entity>().ToList(),
-                TargetType.Ally => battleSession.GetAliveEnemy().Cast<Entity>().ToList(),
-                TargetType.Self => new List<Entity>() { selecter },
-                TargetType.All => battleSession.GetAliveEnemy().Cast<Entity>().Concat(battleSession.GetAliveParty()).ToList(),
-                _ => new List<Entity>() { selecter },
-            };
+            return (true, null);
         }
         else
         {
-            return targetType switch
-            {
-                TargetType.Enemy => battleSession.GetAliveEnemy().Cast<Entity>().ToList(),
-                TargetType.Ally => battleSession.GetAliveParty().Cast<Entity>().ToList(),
-                TargetType.Self => new List<Entity>() { selecter },
-                TargetType.All => battleSession.GetAliveEnemy().Cast<Entity>().Concat(battleSession.GetAliveParty()).ToList(),
-                _ => new List<Entity>() { selecter },
-            };
+            return (false, "選択数が多すぎます");
         }
+    }
+    private string SelectionText(List<Entity> targetCandidates, List<Entity> currentSelecting)
+    {
+        string text = "";
+        for(int i = 0; i < targetCandidates.Count; i++)
+        {
+            var target = targetCandidates[i];
+            bool isSelected = currentSelecting.Contains(target);
+            string t = (isSelected) ? "選択中" : "未選択";
+            text += $"[{i+1}:{target.Name}(HP:{target.Stat.CurrentHp}/{target.Stat.TotalHP},{t})]";
+        }
+        text += "\nEnterキーで確定";
+        return text;
+    }
+
+    private List<Entity> GetTargetsList(Entity selecter, BattleSession battleSession, TargetType targetType)
+    {
+        bool isEnemy = selecter is EnemyCharacter;
+        return targetType switch
+        { 
+            TargetType.Enemy => (isEnemy) ? battleSession.GetAliveParty().Cast<Entity>().ToList() : battleSession.GetAliveEnemy().Cast<Entity>().ToList(),
+            TargetType.Ally => (isEnemy) ? battleSession.GetAliveEnemy().Cast<Entity>().ToList() : battleSession.GetAliveParty().Cast<Entity>().ToList(),
+            TargetType.Self => new List<Entity>() { selecter },
+            TargetType.All => battleSession.GetAliveEnemy().Cast<Entity>().Concat(battleSession.GetAliveParty()).ToList(),
+            _ => new List<Entity>() { selecter },
+        };
     }
 }

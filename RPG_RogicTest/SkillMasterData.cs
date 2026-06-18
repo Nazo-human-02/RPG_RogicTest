@@ -5,24 +5,7 @@ public static class GameSkillMasterData
     public static IReadOnlyDictionary<GameId<ISkillId>, BaseSkillMasterData> SkillDataDict => _skillDataDict;
     private static readonly Dictionary<GameId<ISkillId>, BaseSkillMasterData> _skillDataDict = new Dictionary<GameId<ISkillId>, BaseSkillMasterData>();
 
-    public static IReadOnlyDictionary<GameId<ICostId>, CostData> CostDict => _costDict;
-    private static readonly Dictionary<GameId<ICostId>, CostData> _costDict = new Dictionary<GameId<ICostId>, CostData>();
-
     public static void Load()
-    {
-        CostLoad();
-        SkillLoad();
-    }
-    public static void CostLoad()
-    {
-        _costDict.Clear();
-
-        _costDict["cost_000"] = new CostData(CostType.CurrentMP, true, 0);
-        _costDict["cost_001"] = new CostData(CostType.MaxMP, true, 10);
-        _costDict["cost_002"] = new CostData(CostType.CurrentMP, false, 50);
-
-    }
-    public static void SkillLoad()
     {
         _skillDataDict.Clear();
 
@@ -31,6 +14,14 @@ public static class GameSkillMasterData
         _skillDataDict["skill_003"] = new AttackSkillData("skill_003", SkillType.Active, "スラッシュ", 3, "notify_000", TargetType.Enemy, 2, "cost_001", 2f, 3, false, 0);
     }
 
+    public static BaseSkillMasterData GetSkillData(GameId<ISkillId> skillID)
+    {
+        if(!SkillDataDict.TryGetValue(skillID, out var skillData))
+        {
+            throw new Exception($"スキルID:{skillID}のデータが見つかりません");
+        }
+        return skillData;
+    }
 }
 
 abstract public class BaseSkillMasterData(GameId<ISkillId> id, SkillType skillType , string skillName,
@@ -75,9 +66,3 @@ public class AttackSkillData(GameId<ISkillId> id, SkillType skillType, string sk
     }
 }
 
-public class CostData(CostType costType, bool isFixed, int cost)
-{
-    public CostType CostType = costType;
-    public bool IsFixed = isFixed;
-    public int Cost = cost;
-}

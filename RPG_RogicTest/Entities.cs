@@ -60,12 +60,14 @@ public abstract class Entity : IEquipable, ITalkable
 
     public void UpdateStat()
     {
-        StatCalculator.SetUpLevelStat(Stat, EntityID);
+        EntityBaseStatData baseStatData = EntityBaseStatMasterData.GetEntityBaseStat(EntityID);
+        StatCalculator.SetUpLevelStat(Stat, baseStatData);
     }
 
     public void SetCurrentStat()
     {
-        StatCalculator.UpdateStat(Stat, EntityID);
+        EntityBaseStatData baseStatData = EntityBaseStatMasterData.GetEntityBaseStat(EntityID);
+        StatCalculator.UpdateStat(Stat, baseStatData);
     }
 
     public void AddNotify(Notification notification)
@@ -86,14 +88,6 @@ public abstract class Entity : IEquipable, ITalkable
         if(Stat.IsDead)
         {
             Notifications.ClearNotify();
-            if (this is EnemyCharacter)
-            {
-                LogWrite.Log($"{Name}を倒した！");
-            }
-            else
-            {
-                LogWrite.Log($"{Name}は倒された...");
-            }
         }
     }
     public Entity Clone()

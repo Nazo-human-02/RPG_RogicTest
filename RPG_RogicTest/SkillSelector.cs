@@ -1,59 +1,60 @@
 ﻿using System;
 
-public static class SkillSelection
+public class SkillSelection(ILogProvider log, IInputProvider inputProvider)
 {
-    public static Skill SkillSelect(Entity entity)
+    private readonly ILogProvider _log = log;
+    private readonly IInputProvider _input = inputProvider;
+    public Skill SkillSelect(Entity entity)
     {
-        Skill? currentSelect = null;
-        Dictionary<int, Skill> skillDict = new Dictionary<int, Skill>();
-        int n = 1;
-        foreach(Skill skill in entity.ValidSkills)
-        {
-            skillDict[n] = skill;
-            n++;
-        }
-        SkillSelectText(skillDict);
+        IReadOnlyList<Skill> skills = entity.ValidSkills.ToList();
+        SkillSelectText(skills);
 
-        return Selecting(skillDict, currentSelect);
+        return WaitForSkillSelection(skills);
     }
-    private static Skill Selecting(Dictionary<int, Skill> skillDict, Skill? currentSelect)
+    private Skill WaitForSkillSelection(IReadOnlyList<Skill> skillList)
     {
-        string? num = Console.ReadLine();
-        
-        if(string.IsNullOrEmpty(num))
+        Skill? selected = null;
+        while (true)
         {
-            if(currentSelect != null)
+            string? num = _input.Input();
+
+            if (string.IsNullOrEmpty(num))
             {
-                return currentSelect;
+                if (selected != null)
+                {
+                    return selected;
+                }
+                else
+                {
+                    _log.Log("スキルを選択してください");
+                }
+            }
+            else if (!int.TryParse(num, out int n) || n < 1 || n > skillList.Count)
+            {
+                _log.Log("入力が正しくありません");
             }
             else
             {
-                LogWrite.Log("スキルを選択してください");
+                Skill skill = skillList[n - 1];
+                if (skill.CurrentCoolTime > 0)
+                {
+                    _log.Log($"クールタイム中:残り{skill.CurrentCoolTime}ターン");
+                    continue;
+                }
+    
+                selected = skill;
+                _log.Log($"現在選択中:{selected.Name}(Enterキーで確定)");        
             }
         }
-        else if(!int.TryParse(num, out int n) || !skillDict.TryGetValue(n, out var skill))
-        {
-            LogWrite.Log("入力が正しくありません");
-        }
-        else if(skill.CurrentCoolTime > 0)
-        {
-            LogWrite.Log($"クールタイム中:残り{skill.CurrentCoolTime}ターン");
-        }
-        else
-        {
-            currentSelect = skill;
-            LogWrite.Log($"現在選択中:{skill.Name}(Enterキーで確定)");
-        }
-        return Selecting(skillDict, currentSelect);
     }
-    private static void SkillSelectText(Dictionary<int, Skill> skillDict)
+    private void SkillSelectText(IReadOnlyList<Skill> skillList)
     {
         string text = "";
-        foreach(var dict in skillDict)
+        for (int i = 0; i < skillList.Count; i++)
         {
-            text += $"[{dict.Key}:{dict.Value.Name}]";
+            text += $"[{i + 1}:{skillList[i].Name}]";
         }
         text += "\nEnterキーで確定";
-        LogWrite.Log(text);
+        _log.Log(text);
     }
 }

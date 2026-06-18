@@ -7,7 +7,7 @@ public static class AreaEntitySetting
 
     public static void AreaEnemySet()
     {
-        EnemyCandidateList area1_CandidateList = new EnemyCandidateList();
+        EnemyCandidateList area1_CandidateList = new EnemyCandidateList(new RandomProvider());
 
         area1_CandidateList.AddCandidate("enemy_slime_001", EnemyType.Normal, 1, 5, 70);
         area1_CandidateList.AddCandidate("enemy_goblin_001", EnemyType.Normal, 3, 8, 30);
@@ -19,7 +19,7 @@ public static class AreaEntitySetting
     public static List<EnemyCharacter> RandomSpawnEnemy(GameId<IAreaId> areaID, int spawnAmount)
     {
         EnemyCandidateList candidateList = GetEnemyCandidateList(areaID);
-        List<EnemyCharacter> enemyList = candidateList.RamdomSpawnEnemy(spawnAmount);
+        List<EnemyCharacter> enemyList = candidateList.RandomSpawnEnemy(spawnAmount);
         return enemyList;
     }
 
