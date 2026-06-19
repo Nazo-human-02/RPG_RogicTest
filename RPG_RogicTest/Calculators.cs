@@ -54,7 +54,7 @@ public class BattleCalculator(IRandomProvider randomProvider)
     {
         return (int)(dmg * multiplier);
     }
-    private float CalculateCriticalRate(BattleStat attacker, BattleStat target)
+    public float CalculateCriticalRate(BattleStat attacker, BattleStat target)
     {
         float modifier =(attacker.expSet.CurrentLevel - target.expSet.CurrentLevel)*1.5f;
         return MathF.Max(1f, attacker.TotalCriPer + modifier);
