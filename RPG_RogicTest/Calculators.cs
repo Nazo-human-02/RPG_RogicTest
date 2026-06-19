@@ -26,29 +26,47 @@ static public class StatCalculator
 public class BattleCalculator(IRandomProvider randomProvider)
 {
     private readonly IRandomProvider _randomProvider = randomProvider;
-    public (bool, int) BaseDamageCal(Entity attacker, Entity target, DamageInfo damageInfo) //使用スキルも追加予定
+    public (bool, int) CalculateDamage(BattleStat attacker, BattleStat target, DamageInfo damageInfo) //使用スキルも追加予定
     {
-        if(damageInfo.FixedDamage > 0)
+        if(IsFixedDamage(damageInfo))
             return (false, damageInfo.FixedDamage);
-        int baseDmg = Math.Max(0, attacker.Stat.TotalAtk - target.Stat.TotalDef);
-        int variance = Math.Max(1, (int)(baseDmg * 0.1f));
-        int damage = baseDmg + _randomProvider.GetRandomInt(-variance, variance + 1);
-        damage = Math.Max(1, damage);
-        if(damageInfo.DamageMultiplier > 1f)
-        {
-            damage = (int)(damage * damageInfo.DamageMultiplier);
-        }
-        bool cri = IsCritical(attacker, target);
-        int result = (cri) ? (int)(damage * attacker.Stat.TotalCri) : damage;
+
+        int damage = CalculateBaseDamage(attacker.TotalAtk, target.TotalDef);
+        damage = ApplyDamageMultiplier(damage, damageInfo.DamageMultiplier);
+        float criticalRate = CalculateCriticalRate(attacker, target);
+        bool cri = IsCritical(criticalRate);
+        int result = (cri) ? ApplyCriticalMultiplier(damage, attacker.TotalCri) : damage;
         return (cri, result);
     }
-    
-    public bool IsCritical(Entity attacker, Entity target) //使用スキルなどでの補正も将来入れたい
+    private bool IsFixedDamage(DamageInfo damageInfo)
     {
-        float modifier =(float)(attacker.Stat.expSet.CurrentLevel - target.Stat.expSet.CurrentLevel)*1.5f;
+        return damageInfo.FixedDamage > 0;
+    }
+    private int CalculateBaseDamage(int atk, int def)
+    {
+        int dmg = Math.Max(0, atk - def);
+        int variance = Math.Max(1, (int)(dmg * 0.1f));
+        dmg += _randomProvider.GetRandomInt(-variance, variance + 1);
+        return Math.Max(1, dmg);
+    }
+
+    private int ApplyDamageMultiplier(int dmg, float multiplier)
+    {
+        return (int)(dmg * multiplier);
+    }
+    private float CalculateCriticalRate(BattleStat attacker, BattleStat target)
+    {
+        float modifier =(attacker.expSet.CurrentLevel - target.expSet.CurrentLevel)*1.5f;
+        return MathF.Max(1f, attacker.TotalCriPer + modifier);
+    }
+    private bool IsCritical(float criticalRate) //使用スキルなどでの補正も将来入れたい
+    {
         float rdm = (float)_randomProvider.GetRandomFloat() * 100f;
-        float per = MathF.Max(1f, attacker.Stat.TotalCriPer + modifier);
-        return per > rdm;
+        return criticalRate > rdm;
+    }
+    private int ApplyCriticalMultiplier(int dmg, float criticalMultiplier)
+    {
+        return (int)(dmg * criticalMultiplier);
     }
 }
 
@@ -142,7 +160,7 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
         }
         BattleNotification.TriggerPhase(Phase.BeforeAttack, actionUnit, target); //攻撃直前
 
-        (bool cri, int dmg) = _battleCalculator.BaseDamageCal(attacker, target, actionUnit.DamageInfo);
+        (bool cri, int dmg) = _battleCalculator.CalculateDamage(attacker.Stat, target.Stat, actionUnit.DamageInfo);
         string text = (cri) ? $"クリティカル!{target.Name}に{dmg}のダメージ！" : $"{target.Name}に{dmg}のダメージ";
         _logProvider.Log(text);
         bool isDead = target.Stat.TakeDamage(actionUnit, target, dmg);
