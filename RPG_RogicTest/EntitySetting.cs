@@ -1,37 +1,5 @@
 ﻿using System;
 
-public static class AreaEntitySetting
-{
-    public static IReadOnlyDictionary<GameId<IAreaId>, EnemyCandidateList> AreaEnemyCandidates => _areaEnemyCandidates;
-    private static readonly Dictionary<GameId<IAreaId>, EnemyCandidateList> _areaEnemyCandidates = new Dictionary<GameId<IAreaId>, EnemyCandidateList>();
-
-    public static void AreaEnemySet()
-    {
-        EnemyCandidateList area1_CandidateList = new EnemyCandidateList(new RandomProvider());
-
-        area1_CandidateList.AddCandidate("enemy_slime_001", EnemyType.Normal, 1, 5, 70);
-        area1_CandidateList.AddCandidate("enemy_goblin_001", EnemyType.Normal, 3, 8, 30);
-        area1_CandidateList.AddCandidate("enemy_dragon_001", EnemyType.Boss, 6, 8, 100);
-
-        _areaEnemyCandidates["area_001"] = area1_CandidateList;
-    }
-
-    public static List<EnemyCharacter> RandomSpawnEnemy(GameId<IAreaId> areaID, int spawnAmount)
-    {
-        EnemyCandidateList candidateList = GetEnemyCandidateList(areaID);
-        List<EnemyCharacter> enemyList = candidateList.RandomSpawnEnemy(spawnAmount);
-        return enemyList;
-    }
-
-    public static EnemyCandidateList GetEnemyCandidateList(GameId<IAreaId> areaID)
-    {
-        if(!AreaEnemyCandidates.TryGetValue(areaID, out var candidateList))
-        {
-            throw new Exception($"エリアID:{areaID}の出現エネミーデータが見つかりません");
-        }
-        return candidateList;
-    }
-}
 
 public static class EntityBaseStatMasterData
 {

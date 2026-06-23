@@ -40,12 +40,15 @@ public interface IEquipable
 
 #region ゲームタグ用のインターフェース
 public interface IAreaId { }
+public interface IEnemyTableId { }
 public interface IBaseStatId { }
 public interface IEntityId { }
 public interface IEnemyId { }
+public interface IBossPartyId { }
 public interface INpcId { }
 public interface ICharacterId { }
 public interface IDropRewardId { }
+public interface IDropItemTableId { }
 public interface ISkillId { }
 public interface INotificationId { }
 public interface ICostId { }

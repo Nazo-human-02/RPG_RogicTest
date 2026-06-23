@@ -46,7 +46,7 @@ public abstract class Entity : IEquipable, ITalkable
     protected void InitializeStat(BattleStat stat)
     {
         Stat = stat;
-        UpdateStat();
+        //UpdateStat();
     }
     public void AddParty()
     {
@@ -61,13 +61,12 @@ public abstract class Entity : IEquipable, ITalkable
     public void UpdateStat()
     {
         EntityBaseStatData baseStatData = EntityBaseStatMasterData.GetEntityBaseStat(EntityID);
-        StatCalculator.SetUpLevelStat(Stat, baseStatData);
+        StatCalculator.UpdateStat(Stat, baseStatData);
     }
-
-    public void SetCurrentStat()
+    public void SetLevelUpStat()
     {
         EntityBaseStatData baseStatData = EntityBaseStatMasterData.GetEntityBaseStat(EntityID);
-        StatCalculator.UpdateStat(Stat, baseStatData);
+        StatCalculator.SetUpLevelStat(Stat, baseStatData);
     }
 
     public void AddNotify(Notification notification)
@@ -77,6 +76,10 @@ public abstract class Entity : IEquipable, ITalkable
     public void SetSkill(GameId<ISkillId> skillId)
     {
         Skill skill = SkillCreator.Create(skillId);
+        ValidSkills.Add(skill);
+    }
+    public void DirectSetSkill(Skill skill)
+    {
         ValidSkills.Add(skill);
     }
     public void RemoveSkill(GameId<ISkillId> skillId)
@@ -94,42 +97,19 @@ public abstract class Entity : IEquipable, ITalkable
     {
         Entity clone = (Entity)this.MemberwiseClone();
 
-        clone.Stat = new BattleStat()
-        {
-            CurrentHp = this.Stat.CurrentHp,
-            CurrentMp = this.Stat.CurrentMp,
-            MaxHp = this.Stat.MaxHp,
-            MaxMp = this.Stat.MaxMp,
-
-            expSet = new ExpSet()
-            {
-                CurrentLevel = this.Stat.expSet.CurrentLevel,
-                CurrentExp = this.Stat.expSet.CurrentExp,
-                TotalExp = this.Stat.expSet.TotalExp,
-                ExpModifier = this.Stat.expSet.ExpModifier
-            },
-
-            baseStat = new BaseStat()
-            {
-                Atk = this.Stat.baseStat.Atk,
-                Def = this.Stat.baseStat.Def,
-                Agi = this.Stat.baseStat.Agi,
-                CriPer = this.Stat.baseStat.CriPer,
-                Cri = this.Stat.baseStat.Cri
-            }
-        };
+        clone.Stat = this.Stat.Clone();
 
         clone.Equipments = new Dictionary<BodyParts, Equipment>();
         foreach (var kvp in this.Equipments)
         {
-            clone.Equipments[kvp.Key] = new Equipment()
-            {
-                equipmentType = kvp.Value.equipmentType,
-                bodyParts = kvp.Value.bodyParts
-            };
+            clone.Equipments[kvp.Key] = kvp.Value.Clone();
         }
-        clone.ValidSkills = new HashSet<Skill>(this.ValidSkills);
-        clone.Notifications = new();
+        clone.ValidSkills = new HashSet<Skill>();
+        foreach(Skill skill in this.ValidSkills) 
+        {
+            clone.ValidSkills.Add(skill.Clone());
+        }
+        clone.Notifications = this.Notifications.Clone();
 
         return clone;
     }
@@ -139,6 +119,7 @@ public class EnemyCharacter : Entity, IEnemy
 {
     public EnemyType EnemyType { get; set; }
     public DropRewardData DropData { get; set; }
+    public GameId<IEnemyId> EnemyID;
 
     public EnemyCharacter(string name, EnemyType enemyType, BattleStat battleStat, GameId<IBaseStatId> id, DropRewardData rewardData) 
         : base(name, battleStat, id)

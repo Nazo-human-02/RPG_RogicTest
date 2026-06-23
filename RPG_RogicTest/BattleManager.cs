@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Data;
 
-public class BattleSession(IReadOnlySet<CharacterBase> party, List<EnemyCharacter> enemies)
+public class BattleSession(IReadOnlySet<CharacterBase> party, IReadOnlyList<EnemyCharacter> enemies)
 {
     public IReadOnlySet<CharacterBase> Party { get; private set; } = party;
-    public List<EnemyCharacter> Enemies { get; private set; } = enemies;
+    public IReadOnlyList<EnemyCharacter> Enemies { get; private set; } = enemies;
 
     public List<CharacterBase> GetAliveParty() => Party.Where(p => !p.Stat.IsDead).ToList();
 	public List<EnemyCharacter> GetAliveEnemy() => Enemies.Where(e => !e.Stat.IsDead).ToList();
@@ -42,15 +42,16 @@ public static class ActionUnitCreator
 	}
 }
 
-public class BattleManager(IReadOnlySet<CharacterBase> party, List<EnemyCharacter> enemies, 
-	ILogProvider logProvider, IInputProvider inputProvider,ActionExecutor actionExecutor, TurnScheduler turnScheduler, PartyController partyController)
+public class BattleManager(IReadOnlySet<CharacterBase> party, IReadOnlyList<EnemyCharacter> enemies, 
+	ILogProvider logProvider, IInputProvider inputProvider, IRandomProvider randomProvider, PartyController partyController)
 {
 	public BattleSession Session => _battleSession;
     private readonly BattleSession _battleSession = new BattleSession(party, enemies);
 	private readonly CommandSelect _commandSelect = new CommandSelect(logProvider);
     private readonly ILogProvider _logProvider = logProvider;
-    private readonly ActionExecutor _actionExecutor = actionExecutor;
-    private readonly TurnScheduler _turnScheduler = turnScheduler;
+    private readonly ActionExecutor _actionExecutor =
+		new ActionExecutor(new BattleCalculator(randomProvider), logProvider);
+    private readonly TurnScheduler _turnScheduler = new TurnScheduler(randomProvider);
 
 	private readonly SkillSelection skillSelection = new SkillSelection(logProvider, inputProvider);
 	private readonly TargetSelect targetSelect = new TargetSelect(logProvider, inputProvider);

@@ -30,6 +30,11 @@ public abstract class Skill(GameId<ISkillId> id, string skillName, int coolTime,
     }
 
     abstract public void ExecuteSkill(BattleManager battleManager, ActionUnit actionUnit, Entity target);
+
+    public Skill Clone()
+    { 
+        return (Skill)this.MemberwiseClone();
+    }
 }
 
 public abstract class PassiveSkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId, Phase activePhase, TargetType targetType, int targetAmount = 1)
@@ -91,6 +96,17 @@ public abstract class ActiveSkill(GameId<ISkillId> id, string skillName, int coo
         return false;
     }
 }
+
+public class NullBrankSkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId,
+    CostType costType, bool isFixed, int cost, TargetType targetType, int targetAmount)
+    : ActiveSkill(id, skillName, coolTime, notifyId, costType, isFixed, cost, targetType, targetAmount)
+{ 
+    public override void ExecuteSkill(BattleManager battleManager, ActionUnit actionUnit, Entity target)
+    {
+        // Do nothing
+    }
+}
+
 
 public class AffordNotifySkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId, 
     CostType costType, bool isFixed, int cost, TargetType targetType, int targetAmount = 1) 

@@ -32,4 +32,5 @@ public class EnemyData(GameId<IBaseStatId> statId, GameId<IDropRewardId> dropId)
 {
     public GameId<IBaseStatId> StatId {  get; private set; } = statId;
     public GameId<IDropRewardId> DropId {  get; private set; } = dropId;
+    //public GameId<IDropItemTableId> DropTableId { get; private set; } = dropTableId;
 }

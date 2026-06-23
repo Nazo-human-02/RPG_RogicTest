@@ -4,72 +4,46 @@ public static class RpgMainRogic
 {
 	static void Main()
 	{
-
-        bool isPlaying = true;
-        int battleCount = 1;
-
         IRandomProvider random = new RandomProvider();
         ILogProvider log = new ConsoleLogProvider();
         IInputProvider input = new ConsoleInputProvider();
-        BattleCalculator battleCalculator = new BattleCalculator(random);
-        ActionExecutor actionExecutor = new ActionExecutor(battleCalculator, log);
-        TurnScheduler turnScheduler = new TurnScheduler(random);
 
         PartyController partyController = new PartyController(log);
 
         InitializeGame(log, partyController);
 
-        while (isPlaying)
+        DungeonManager dungeonManager = new DungeonManager(log, random, input);
+        while(true)
         {
-            log.Log($"\n====================================");
-            log.Log($"  第 {battleCount} 戦目の準備開始   ");
-            log.Log($"====================================");
-
-            List<EnemyCharacter> enemies = SpawnEnemies("area_001", 3, log); // エリア1、3体出現
-
-            ShowPartyStatus(log, partyController);
-
-            BattleManager battleManager = new BattleManager(partyController.PartyMember, enemies, log, input, actionExecutor, turnScheduler, partyController);
-
-            BattleResultType result = battleManager.BattleStart();
-
-            if (result == BattleResultType.Victory)
-            {
-                log.Log("\n戦闘に勝利した！次のエンカウントへ進みます。");
-                battleCount++;
-
-                PrepareForNextBattle(actionExecutor, partyController);
-            }
-            else if (result == BattleResultType.Defeat)
-            {
-                log.Log("\nパーティが全滅した... GAME OVER");
-                isPlaying = false; // ループを抜けて終了
-            }
-            else
-            {
-                // 逃走などの場合
-                log.Log("\n戦闘から逃げ出した。");
-                battleCount++;
-            }
+            dungeonManager.EnterDungeon(partyController);
+            bool isContinue = ContinueGame(input, log);
+            if (!isContinue)
+                break;
+            PrepareForNextBattle(partyController);
         }
+
 
         log.Log("\nゲームを終了します。プレイありがとうございました！");
 	}
 
     private static void LoadMasterDatas()
     {
+        AreaMasterData.Load();
+        BossPartyMasterData.Load();
+        CostMasterData.Load();
         DropRewardMasterData.Load();
+        DropItemTableMasterData.Load();
+        DungeonFloorMasterData.Load();
         EnemyMasterData.Load();
+        EnemyTableMasterData.Load();
         EntityBaseStatMasterData.Load();
         NotificationMasterData.Load();
-        CostMasterData.Load();
+        NpcMasterData.Load();
         GameSkillMasterData.Load();
     }
 	private static void InitializeGame(ILogProvider log, PartyController partyController)
 	{
         LoadMasterDatas();
-
-        AreaEntitySetting.AreaEnemySet();
 
         if (partyController.PartyMember.Count == 0)
         {
@@ -86,21 +60,22 @@ public static class RpgMainRogic
 		log.Log("ゲームの初期化完了");
     }
 
-	private static List<EnemyCharacter> SpawnEnemies(GameId<IAreaId> areaID, int enemyAmount, ILogProvider log)
-	{
-        log.Log($"エリア{areaID}:{AreaEntitySetting.AreaEnemyCandidates[areaID]}");
-        List<EnemyCharacter> enemies = AreaEntitySetting.RandomSpawnEnemy(areaID, enemyAmount);
-        foreach (var enemy in enemies)
+    private static bool ContinueGame(IInputProvider inputProvider, ILogProvider logProvider)
+    {
+        while (true)
         {
-            Notification notify = NotifyCreator.Creator("notify_003", enemy);
-            enemy.AddNotify(notify);
-            log.Log($"Lv{enemy.Stat.expSet.CurrentLevel}:{enemy.Name}," +
-                $"[ステータス]最大HP:{enemy.Stat.MaxHp},最大MP:{enemy.Stat.MaxMp}," +
-                $"攻撃力:{enemy.Stat.baseStat.Atk},防御力:{enemy.Stat.baseStat.Def},敏捷:{enemy.Stat.baseStat.Agi},状態個数:{enemy.Notifications.Notifications.Count}");
+            logProvider.Log("0:戦闘継続,1:ゲーム終了");
+            string? input = inputProvider.Input();
+            if (string.IsNullOrEmpty(input) || !int.TryParse(input, out int num) || (num != 0 && num != 1))
+            {
+                logProvider.Log("正しく入力してください");
+            }
+            else if (num == 0)
+                return true;
+            else
+                return false;
         }
-		return enemies;
     }
-
 	private static void ShowPartyStatus(ILogProvider log, PartyController partyController)
 	{
         log.Log("\n---現在のパーティー状況---");
@@ -120,10 +95,8 @@ public static class RpgMainRogic
         log.Log("-----------------------\n");
     }
 
-    private static void PrepareForNextBattle(ActionExecutor actionExecutor, PartyController partyController)
+    private static void PrepareForNextBattle(PartyController partyController)
     {
-        actionExecutor.ClearLogCache();
-
         foreach (var member in partyController.PartyMember)
         {
             foreach (var skill in member.ValidSkills)

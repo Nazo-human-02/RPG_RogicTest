@@ -56,6 +56,11 @@ abstract public class Notification(GameId<INotificationId> notifyID, Phase phase
 			RemainTime--;
 		}
 	}
+
+	public Notification Clone()
+	{
+		return (Notification)this.MemberwiseClone();
+	}
 }
 
 public class NullNotify(GameId<INotificationId> notifyID, string logMassage, Phase phase = Phase.None, 

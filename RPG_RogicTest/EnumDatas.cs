@@ -3,8 +3,11 @@
 #region Enumたち
 public enum BodyParts { Head, Chest, Legs, Feet, Arms, Hands, LeftHand, RightHand, Blank };
 public enum EquipmentType { Armor, Weapon, Blank };
+public enum ItemRarity { Common, Rare, SuperRare};
 public enum EnemyType { Normal, Boss };
 public enum ActionType { Attack, Skill, Guard, Escape};
+public enum DirectionType { Left, Right, Center};
+public enum DungeonEventType { Battle, Treasure, None}
 public enum DamageType { Physical, Magical, Dot, Heal, None};
 public enum SkillType { Active, Passive};
 public enum NotifyStackType { Refresh, Independent, Ignore, Replace}　//Notifyの重複処理タイプ

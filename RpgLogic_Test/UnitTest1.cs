@@ -211,7 +211,61 @@ namespace RpgLogic_Test
             Assert.Equal(12.5f, criticalRate); //criPer:20 - レベル差5 * 1.5f = 12.5f
         }
 
+        [Fact]
+        public void EntityClone_Cloneメソッドにより中身が複製されるか()
+        {
+            //Arrange
+            var originalEntity = new MainCharacter("original", CreateStat(atk:10), "ori_000");
+            originalEntity.Notifications.AddNotify(new NullNotify("test_000", "test"));
+            originalEntity.DirectSetSkill(new NullBrankSkill("skill_000", "brank", 0, "test_000", CostType.MaxHP, true, 0, TargetType.All, 1)); //スキル変更の影響確認_4
+            //Act
+            var clonedEntity = originalEntity.Clone();
+            //Assert
+            Assert.Equal(originalEntity.EntityID, clonedEntity.EntityID);
+            Assert.Equal(originalEntity.Name, clonedEntity.Name);
+            Assert.NotSame(originalEntity.Stat.baseStat, clonedEntity.Stat.baseStat);
+            Assert.NotSame(originalEntity.Stat.expSet, clonedEntity.Stat.expSet);
+            Assert.Equal(originalEntity.Stat.CurrentHp, clonedEntity.Stat.CurrentHp);
+            Assert.Equal(originalEntity.Stat.baseStat.Atk, clonedEntity.Stat.baseStat.Atk);
+            Assert.Equal(originalEntity.Notifications.Notifications.Count, clonedEntity.Notifications.Notifications.Count);
+            Assert.NotSame(originalEntity.Notifications.Notifications, clonedEntity.Notifications.Notifications);
+            Assert.NotSame(originalEntity.Notifications.Notifications[0], clonedEntity.Notifications.Notifications[0]);
+            Assert.Equal(originalEntity.ValidSkills.Count, clonedEntity.ValidSkills.Count);
+            Assert.NotSame(originalEntity.ValidSkills.First(), clonedEntity.ValidSkills.First());
+            Assert.NotSame(originalEntity.ValidSkills, clonedEntity.ValidSkills);
+            Assert.NotSame(originalEntity.Equipments[BodyParts.Head], clonedEntity.Equipments[BodyParts.Head]);
+            Assert.NotSame(originalEntity.Equipments, clonedEntity.Equipments);
+            Assert.Equal(originalEntity.Stat.expSet.CurrentLevel, clonedEntity.Stat.expSet.CurrentLevel);
+            Assert.Equal(originalEntity.Stat.EquipmentModStat.AtkMod.BaseFlat, clonedEntity.Stat.EquipmentModStat.AtkMod.BaseFlat);
+            Assert.NotSame(originalEntity.Stat.EquipmentModStat, clonedEntity.Stat.EquipmentModStat);
+            Assert.NotSame(originalEntity.Stat.NotifyModStat, clonedEntity.Stat.NotifyModStat);
+        }
+        [Fact]
+        public void EntityClone_Cloneメソッドによる複製後に変更が影響しないか()
+        {
+            //Arrange
+            var originalEntity = new MainCharacter("original", CreateStat(atk:10), "ori_000");
+            //Act
+            var clonedEntity = originalEntity.Clone();
+            originalEntity.Stat.CurrentHp = 50; //体力変更の影響確認_1
+            originalEntity.Stat.baseStat.Atk = 2000; //攻撃力変更の影響確認_2
+            originalEntity.Notifications.AddNotify(new NullNotify("test_000", "test")); //通知効果変更の影響確認_3
+            originalEntity.DirectSetSkill(new NullBrankSkill("skill_000", "brank", 0, "test_000", CostType.MaxHP, true, 0, TargetType.All, 1)); //スキル変更の影響確認_4
+            originalEntity.Equipments[BodyParts.Head] = new Equipment();　//装備変更の影響確認_5
+            originalEntity.Stat.expSet.SetLevel(100); //レベル変更の影響確認_6
+            originalEntity.Stat.EquipmentModStat.AtkMod.BaseFlat = 5; //装備補正値変更の影響確認_7
 
+            //Assert
+            Assert.Equal(originalEntity.EntityID, clonedEntity.EntityID);
+            Assert.Equal(originalEntity.Name, clonedEntity.Name);
+            Assert.NotEqual(originalEntity.Stat.CurrentHp, clonedEntity.Stat.CurrentHp); //1
+            Assert.NotEqual(originalEntity.Stat.baseStat.Atk, clonedEntity.Stat.baseStat.Atk); //2
+            Assert.NotSame(originalEntity.Notifications.Notifications, clonedEntity.Notifications.Notifications); //3
+            Assert.NotSame(originalEntity.ValidSkills, clonedEntity.ValidSkills); //4
+            Assert.NotSame(originalEntity.Equipments[BodyParts.Head], clonedEntity.Equipments[BodyParts.Head]); //5
+            Assert.NotEqual(originalEntity.Stat.expSet.CurrentLevel, clonedEntity.Stat.expSet.CurrentLevel); //6
+            Assert.NotEqual(originalEntity.Stat.EquipmentModStat.AtkMod.BaseFlat, clonedEntity.Stat.EquipmentModStat.AtkMod.BaseFlat); //7
+        }
 
         private BattleStat CreateStat(int atk = 0, int def = 0, int cri = 0, float criPer = 0f, int level = 1)
         {

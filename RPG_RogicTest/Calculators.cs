@@ -7,10 +7,13 @@ static public class StatCalculator
     static public void SetUpLevelStat(BattleStat battleStat, EntityBaseStatData baseData)
     {
         UpdateStat(battleStat, baseData);
-        battleStat.CurrentHp = battleStat.MaxHp;
-        battleStat.CurrentMp = battleStat.MaxMp;
+        RecoverAll(battleStat);
     }
-
+    static public void RecoverAll(BattleStat battleStat)
+    {
+        battleStat.CurrentHp = battleStat.TotalHP;
+        battleStat.CurrentMp = battleStat.TotalMP;
+    }
     static public void UpdateStat(BattleStat battleStat, EntityBaseStatData baseData)
     {
         int lv = battleStat.expSet.CurrentLevel;

@@ -39,6 +39,16 @@ public class BattleStat()
         BattleNotification.TriggerPhase(Phase.OnHitDamage, actionUnit, target);
         return false;
     }
+
+    public BattleStat Clone()
+    {
+        BattleStat clone = (BattleStat)this.MemberwiseClone();
+        clone.baseStat = this.baseStat.Clone();
+        clone.expSet = this.expSet.Clone();
+        clone.EquipmentModStat = this.EquipmentModStat.Clone();
+        clone.NotifyModStat = this.NotifyModStat.Clone();
+        return clone;
+    }
 }
 public class ExpSet()
 {
@@ -64,7 +74,7 @@ public class ExpSet()
             CurrentLevel++;
             isLevelUp = true;
         }
-        if(isLevelUp) entity.UpdateStat();
+        if(isLevelUp) entity.SetLevelUpStat();
         return new ExpResult(exp, isLevelUp, currentLevel, CurrentLevel);
     }
 
@@ -73,16 +83,27 @@ public class ExpSet()
         CurrentLevel = level;
     }
 
+    public ExpSet Clone()
+    {
+        ExpSet clone = (ExpSet)this.MemberwiseClone();
+        return clone;
+    }
 }
 public record ExpResult(int GetExp, bool IsLevelUp, int BeforeLevel, int AfterLevel);
-public class BaseStat
+public class BaseStat(int Atk = 1, int Def = 1, int Agi = 1, float CriPer = 0f, float Cri = 0f)
 {
-    public int Atk { get; set; } = 10;
-    public int Def { get; set; } = 5;
-    public int Agi { get; set; } = 4;
-    public float CriPer { get; set; } = 10f; //%表示
-    public float Cri { get; set; } = 1.5f; //倍率
+    public int Atk { get; set; } = Atk;
+    public int Def { get; set; } = Def;
+    public int Agi { get; set; } = Agi;
+    public float CriPer { get; set; } = CriPer;
+    public float Cri { get; set; } = Cri;
+    public BaseStat Clone()
+    {
+        return new BaseStat(Atk, Def, Agi, CriPer, Cri);
+    }
 }
+
+
 
 public class ModifierStat
 {
@@ -93,6 +114,19 @@ public class ModifierStat
     public ModifiableStat AgiMod = new ModifiableStat();
     public ModifiableStat CriPerMod = new ModifiableStat();
     public ModifiableStat CriMod = new ModifiableStat();
+
+    public ModifierStat Clone()
+    {
+        ModifierStat clone = new ModifierStat();
+        clone.HpMod = HpMod.Clone();
+        clone.MpMod = MpMod.Clone();
+        clone.AtkMod = AtkMod.Clone();
+        clone.DefMod = DefMod.Clone();
+        clone.AgiMod = AgiMod.Clone();
+        clone.CriPerMod = CriPerMod.Clone();
+        clone.CriMod = CriMod.Clone();
+        return clone;
+    }
 }
 public class ModifiableStat
 {
@@ -132,17 +166,27 @@ public class ModifiableStat
         result.FinalRate = mod1.FinalRate * mod2.FinalRate;
         return result;
     }
+
+    public ModifiableStat Clone()
+    {
+        return (ModifiableStat)this.MemberwiseClone();
+    }
 }
 public class Equipment
 {
     public EquipmentType equipmentType;
     public BodyParts bodyParts;
+
+    public Equipment Clone()
+    {
+        return (Equipment)this.MemberwiseClone();
+    }
 }
 
 public class NotificationContainer
 {
     public IReadOnlyList<Notification> Notifications => _notifications;
-    private readonly List<Notification> _notifications = new List<Notification>();
+    private List<Notification> _notifications = new List<Notification>();
 
     public void AddNotify(Notification notification)
     {
@@ -213,6 +257,13 @@ public class NotificationContainer
     public void ClearNotify()
     {
         _notifications.Clear();
+    }
+
+    public NotificationContainer Clone()
+    {
+        var clone = (NotificationContainer)this.MemberwiseClone();
+        clone._notifications = new List<Notification>(_notifications.Select(n => n.Clone()));
+        return clone;
     }
 }
 
