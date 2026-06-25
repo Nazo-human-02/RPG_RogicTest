@@ -9,43 +9,32 @@ public class BattleSession(IReadOnlySet<CharacterBase> party, IReadOnlyList<Enem
     public List<CharacterBase> GetAliveParty() => Party.Where(p => !p.Stat.IsDead).ToList();
 	public List<EnemyCharacter> GetAliveEnemy() => Enemies.Where(e => !e.Stat.IsDead).ToList();
 
-	public (bool,int) IsBattleOver() //int=1で勝利、int=2で敗北
+	public (bool,BattleResultType) IsBattleOver() //int=1で勝利、int=2で敗北
 	{
 		if(GetAliveParty().Count == 0)
 		{
-			return (true, 2);
+			return (true, BattleResultType.Defeat);
 		}
         else if(GetAliveEnemy().Count == 0)
         {
-			return (true, 1);
+			return (true, BattleResultType.Victory);
         }
+//		else if(GetAliveEnemy().Count > 0 && GetAliveParty().Count > 0)
+//		{
+//			return (true, BattleResultType.Escape);
+//		}
 		else
 		{
-			return (false, 0);
+			return (false, BattleResultType.ContinueBattle);
 		}
     }
 }
 
-public static class ActionUnitCreator
-{
-	public static ActionUnit[] GetActionUnit(ActionType actionType, Entity executor, List<Entity> targets, Skill? skill = null)
-	{
-		List<ActionUnit> actionUnits = new List<ActionUnit>();
-		Guid guid = Guid.NewGuid();
-		UnitGuid unitGuid = new UnitGuid();
-		foreach(Entity target in targets)
-		{
-			ActionUnit actionUnit = new ActionUnit(actionType, executor, target, skill, unitGuid:unitGuid, guid:guid);
-			actionUnits.Add(actionUnit);
-		}
-		return actionUnits.ToArray();
-	}
-}
+
 
 public class BattleManager(IReadOnlySet<CharacterBase> party, IReadOnlyList<EnemyCharacter> enemies, 
 	ILogProvider logProvider, IInputProvider inputProvider, IRandomProvider randomProvider, PartyController partyController)
 {
-	public BattleSession Session => _battleSession;
     private readonly BattleSession _battleSession = new BattleSession(party, enemies);
 	private readonly CommandSelect _commandSelect = new CommandSelect(logProvider);
     private readonly ILogProvider _logProvider = logProvider;
@@ -57,7 +46,7 @@ public class BattleManager(IReadOnlySet<CharacterBase> party, IReadOnlyList<Enem
 	private readonly TargetSelect targetSelect = new TargetSelect(logProvider, inputProvider);
 
 	private readonly PartyController _partyController = partyController;
-
+	private readonly BattleRewardCalculator _rewardCalculator = new BattleRewardCalculator(randomProvider);
     private Queue<ActionUnit[]> _actionQueue = new Queue<ActionUnit[]>();
 	private Queue<ActionUnit[]> _interruptAction = new Queue<ActionUnit[]>();
 	private List<(ActionUnit, int)> _subStackInterrupt = new List<(ActionUnit, int)>();
@@ -73,7 +62,7 @@ public class BattleManager(IReadOnlySet<CharacterBase> party, IReadOnlyList<Enem
 		BattleNotification.Initialize(_battleSession, this);
 
 		bool isOver = false;
-		int result = 0;
+		BattleResultType resultType = BattleResultType.ContinueBattle;
         _commandSelect.InitializeCommand();
 
 		BattleNotification.TriggerPhase(Phase.StartBattle, null, null); //戦闘開始
@@ -97,34 +86,24 @@ public class BattleManager(IReadOnlySet<CharacterBase> party, IReadOnlyList<Enem
 
 			ExecuteActionUnit();
 
-            (isOver, result) = _battleSession.IsBattleOver();
+            (isOver, resultType) = _battleSession.IsBattleOver();
 			_actionExecutor.ClearLogCache();
 			foreach(Entity enemy in _battleSession.GetAliveEnemy()) enemy.Notifications.TickNotify();
 			foreach(Entity party in _battleSession.GetAliveParty()) party.Notifications.TickNotify();
         }
 
-        CheckBattleResult(result);
+        CheckBattleResult(resultType);
 
 		BattleNotification.TriggerPhase(Phase.EndBattle, null, null); //戦闘終了
 
 		ExecuteActionUnit();
 		Dispose();
-		if(result == 1)
+		if (resultType == BattleResultType.Victory)
 		{
-			int totalGold = _battleSession.Enemies.Sum(e => e.DropData.Gold);
-			int totalExp = _battleSession.Enemies.Sum(e => e.DropData.Exp);
-			DropRewardData totalReward = new DropRewardData(totalGold, totalExp);
-			_partyController.GetReward(totalReward);
-			return BattleResultType.Victory;
+            var reward = _rewardCalculator.CalculateReward(enemies);
+            _partyController.GetReward(reward);
 		}
-		else if(result == 2)
-		{
-			return BattleResultType.Defeat;
-		}
-		else
-		{
-			return BattleResultType.Escape;
-		}
+		return resultType;
 	}
 
 	public List<ActionUnit[]> CommandSelectStep()
@@ -203,19 +182,22 @@ public class BattleManager(IReadOnlySet<CharacterBase> party, IReadOnlyList<Enem
 		}
 	}
 
-	private void CheckBattleResult(int result)
+	private void CheckBattleResult(BattleResultType resultType)
 	{
-        if (result == 1)
-        {
-            _logProvider.Log("_戦闘に勝利した!_");
-        }
-        else if (result == 2)
-        {
-            _logProvider.Log("_戦闘に敗北した..._");
-        }
-        else
-        {
-            _logProvider.Log("想定外の結果");
+		switch (resultType)
+		{
+			case BattleResultType.Victory:
+                _logProvider.Log("_戦闘に勝利した!_");
+				break;
+			case BattleResultType.Defeat:
+                _logProvider.Log("_戦闘に敗北した..._");
+				break;
+			case BattleResultType.Escape:
+				_logProvider.Log("_戦闘から逃げ出した");
+				break;
+			default:
+				_logProvider.Log("想定外の結果");
+				break;
         }
     }
 
@@ -252,82 +234,3 @@ public class BattleManager(IReadOnlySet<CharacterBase> party, IReadOnlyList<Enem
  	}
 }
 
-public class CommandSelect(ILogProvider logProvider)
-{
-	private readonly ILogProvider _logProvider = logProvider;
-	private readonly Dictionary<int, ActionType> commandOption = new Dictionary<int, ActionType>();
-
-	public void InitializeCommand()
-	{
-		commandOption.Clear();
-		commandOption[0] = ActionType.Attack;
-		commandOption[1] = ActionType.Guard;
-		commandOption[2] = ActionType.Skill;
-		commandOption[3] = ActionType.Escape;
-	}
-
-	public ActionType WaitCommandSelect(Entity entity)
-	{
-		_logProvider.Log("[0:攻撃, 1:防御, 2:スキル, 3:逃走]");
-
-		string? selected = Console.ReadLine();
-
-		if (string.IsNullOrEmpty(selected) || !int.TryParse(selected, out var n))
-		{
-			_logProvider.Log("!入力が正しくありません!");
-			return WaitCommandSelect(entity);
-			
-		}
-		if (!commandOption.TryGetValue(n, out var actionType))
-		{
-			_logProvider.Log("!設定されていない番号です!");
-			return WaitCommandSelect(entity);
-		}
-		if(actionType == ActionType.Skill && entity.ValidSkills.Count == 0)
-		{
-			_logProvider.Log($"!{entity.Name}はスキルを所持していません!");
-			return WaitCommandSelect(entity);
-		}
-		return actionType;
-	}
-}
-
-public static class BattleNotification
-{
-	private static BattleSession? _battleSession;
-	private static BattleManager? _battleManager;
-	private static List<Entity> _allEntities = new();
-
-	public static void Initialize(BattleSession battleSession, BattleManager battleManager)
-	{
-		_battleSession = battleSession;
-		_battleManager = battleManager;
-        _allEntities = _battleSession.GetAliveEnemy().Cast<Entity>().Concat(_battleSession.GetAliveParty()).ToList();
-    }
-
-	public static void UpDateEntities()
-	{
-		if (_battleSession == null)
-			return;
-        _allEntities = _battleSession.GetAliveEnemy().Cast<Entity>().Concat(_battleSession.GetAliveParty()).ToList();
-    }
-    public static void TriggerPhase(Phase phase, ActionUnit? actionUnit, Entity? currentTarget)
-	{
-		foreach(Entity entity in _allEntities)
-		{
-			if(entity.Stat.IsDead && phase != Phase.OnDeath)
-			{
-				continue;
-			}
-			if(actionUnit != null &&  actionUnit.ActionGuid.IsProcessed(phase, entity))
-			{
-				continue;
-			}
-			if(_battleManager == null)
-			{
-				continue;
-            }
-            entity.Notifications.ExecuteNotifies(_battleManager, phase, actionUnit, currentTarget);
-		}
-	}
-}

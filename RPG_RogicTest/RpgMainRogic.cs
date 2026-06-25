@@ -37,6 +37,7 @@ public static class RpgMainRogic
         EnemyMasterData.Load();
         EnemyTableMasterData.Load();
         EntityBaseStatMasterData.Load();
+        ItemMasterData.Load();
         NotificationMasterData.Load();
         NpcMasterData.Load();
         GameSkillMasterData.Load();

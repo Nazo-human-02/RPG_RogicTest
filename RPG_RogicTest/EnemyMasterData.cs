@@ -11,9 +11,9 @@ static public class EnemyMasterData
     {
         _enemyMasterDataBase.Clear();
 
-        _enemyMasterDataBase["enemy_slime_001"] = new EnemyData("stat_slime_001", "drop_001");
-        _enemyMasterDataBase["enemy_goblin_001"] = new EnemyData("stat_goblin_001", "drop_002");
-        _enemyMasterDataBase["enemy_dragon_001"] = new EnemyData("stat_dragon_001", "drop_002");
+        _enemyMasterDataBase["enemy_slime_001"] = new EnemyData("stat_slime_001", "drop_001", "drop_table_000");
+        _enemyMasterDataBase["enemy_goblin_001"] = new EnemyData("stat_goblin_001", "drop_002", "drop_table_000");
+        _enemyMasterDataBase["enemy_dragon_001"] = new EnemyData("stat_dragon_001", "drop_002", "drop_table_001");
 
     }
 
@@ -28,9 +28,9 @@ static public class EnemyMasterData
 }
 
 
-public class EnemyData(GameId<IBaseStatId> statId, GameId<IDropRewardId> dropId)
+public class EnemyData(GameId<IBaseStatId> statId, GameId<IDropRewardId> dropId, GameId<IDropItemTableId> dropTableId)
 {
     public GameId<IBaseStatId> StatId {  get; private set; } = statId;
     public GameId<IDropRewardId> DropId {  get; private set; } = dropId;
-    //public GameId<IDropItemTableId> DropTableId { get; private set; } = dropTableId;
+    public GameId<IDropItemTableId> DropTableId { get; private set; } = dropTableId;
 }

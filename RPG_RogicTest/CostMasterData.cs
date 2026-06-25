@@ -27,9 +27,9 @@ public static class CostMasterData
     }
 }
 
-public class CostData(CostType costType, bool isFixed, int cost)
+public class CostData(CostType CostType, bool isFixed, int cost)
 {
-    public CostType CostType = costType;
+    public CostType CostType = CostType;
     public bool IsFixed = isFixed;
     public int Cost = cost;
 }

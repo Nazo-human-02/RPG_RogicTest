@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations;
 using System.Xml.Linq;
 
 #region 計算機
@@ -29,7 +30,7 @@ static public class StatCalculator
 public class BattleCalculator(IRandomProvider randomProvider)
 {
     private readonly IRandomProvider _randomProvider = randomProvider;
-    public (bool, int) CalculateDamage(BattleStat attacker, BattleStat target, DamageInfo damageInfo) //使用スキルも追加予定
+    public (bool, int) CalculateDamage(BattleStat attacker, BattleStat target, DamageInfo damageInfo, bool validCritical = true) //使用スキルも追加予定
     {
         if(IsFixedDamage(damageInfo))
             return (false, damageInfo.FixedDamage);
@@ -38,7 +39,7 @@ public class BattleCalculator(IRandomProvider randomProvider)
         damage = ApplyDamageMultiplier(damage, damageInfo.DamageMultiplier);
         float criticalRate = CalculateCriticalRate(attacker, target);
         bool cri = IsCritical(criticalRate);
-        int result = (cri) ? ApplyCriticalMultiplier(damage, attacker.TotalCri) : damage;
+        int result = (cri && validCritical) ? ApplyCriticalMultiplier(damage, attacker.TotalCri) : damage;
         return (cri, result);
     }
     private bool IsFixedDamage(DamageInfo damageInfo)
@@ -95,6 +96,47 @@ public class TurnScheduler(IRandomProvider randomProvider)
     }
 }
 
+public class BattleRewardCalculator(IRandomProvider random)
+{
+    private readonly IRandomProvider _random = random;
+
+    public BattleResultConfig CalculateReward(IReadOnlyList<EnemyCharacter> enemies)
+    {
+        int totalGold = enemies.Sum(enemy => enemy.DropData.Gold);
+        int totalExp = enemies.Sum(enemy => enemy.DropData.Exp);
+        List<DropItem> dropItems = new List<DropItem>();
+        foreach(var enemy in enemies)
+        {
+            var dropItem = RollDropItem(enemy.DropData.DropTableId);
+            if(dropItem.ItemId != null)
+                dropItems.Add(dropItem);
+        }
+        return new BattleResultConfig(totalExp, totalGold, dropItems);
+    }
+
+    private DropItem RollDropItem(GameId<IDropItemTableId> dropTableId)
+    {
+        var tableData = DropItemTableMasterData.GetDropItemTable(dropTableId);
+        int totalWeight = tableData.Sum(item => item.DropWeight);
+        int rdm = _random.GetRandomInt(0, totalWeight);
+        foreach(var dropItem in tableData)
+        {
+            if(rdm < dropItem.DropWeight)
+            {
+                return new DropItem(dropItem.ItemID, dropItem.Amount, dropItem.Rarity);
+            }
+            rdm -= dropItem.DropWeight;
+        }
+        throw new InvalidOperationException("ドロップアイテムの抽選が正常に実行されませんでした");
+    }
+}
+
+public record DropItem
+(
+    GameId<IItemId>? ItemId,
+    int Amount,
+    ItemRarity ItemRarity
+);
 public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logProvider)
 {
     private readonly BattleCalculator _battleCalculator = battleCalculator;

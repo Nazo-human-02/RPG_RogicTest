@@ -43,10 +43,10 @@ public abstract class PassiveSkill(GameId<ISkillId> id, string skillName, int co
     public Phase ActivePhase { get; set; } = activePhase;
 }
 
-public abstract class ActiveSkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId, CostType costType, bool isFixed, int cost, TargetType targetType, int targetAmount = 1) 
+public abstract class ActiveSkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId, CostType CostType, bool isFixed, int cost, TargetType targetType, int targetAmount = 1) 
     : Skill(id, skillName, coolTime, notifyId, targetType, targetAmount)
 {
-    public CostType CostType { get; init; } = costType;
+    public CostType CostType { get; init; } = CostType;
     public bool IsFixed { get; init; } = isFixed;
     public int Cost {  get; init; } = cost;
 
@@ -98,8 +98,8 @@ public abstract class ActiveSkill(GameId<ISkillId> id, string skillName, int coo
 }
 
 public class NullBrankSkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId,
-    CostType costType, bool isFixed, int cost, TargetType targetType, int targetAmount)
-    : ActiveSkill(id, skillName, coolTime, notifyId, costType, isFixed, cost, targetType, targetAmount)
+    CostType CostType, bool isFixed, int cost, TargetType targetType, int targetAmount)
+    : ActiveSkill(id, skillName, coolTime, notifyId, CostType, isFixed, cost, targetType, targetAmount)
 { 
     public override void ExecuteSkill(BattleManager battleManager, ActionUnit actionUnit, Entity target)
     {
@@ -109,8 +109,8 @@ public class NullBrankSkill(GameId<ISkillId> id, string skillName, int coolTime,
 
 
 public class AffordNotifySkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId, 
-    CostType costType, bool isFixed, int cost, TargetType targetType, int targetAmount = 1) 
-    : ActiveSkill(id, skillName, coolTime, notifyId, costType, isFixed, cost, targetType, targetAmount)
+    CostType CostType, bool isFixed, int cost, TargetType targetType, int targetAmount = 1) 
+    : ActiveSkill(id, skillName, coolTime, notifyId, CostType, isFixed, cost, targetType, targetAmount)
 {
     public override void ExecuteSkill(BattleManager battleManager, ActionUnit actionUnit, Entity target)
     {
@@ -120,9 +120,9 @@ public class AffordNotifySkill(GameId<ISkillId> id, string skillName, int coolTi
 }
 
 public class AttackSkill(GameId<ISkillId> id, string skillName, int coolTime, GameId<INotificationId> notifyId,
-    CostType costType, bool isFixed, int cost, TargetType targetType, int targetAmount,
+    CostType CostType, bool isFixed, int cost, TargetType targetType, int targetAmount,
     float attackRate, int attackTime = 1, bool isDmgFixed = false, int damageValue = 1)
-    : ActiveSkill(id, skillName, coolTime, notifyId, costType, isFixed, cost, targetType, targetAmount)
+    : ActiveSkill(id, skillName, coolTime, notifyId, CostType, isFixed, cost, targetType, targetAmount)
 {
     public float AttackRate { get; init; } = attackRate; //ダメージ倍率
     public int AttackTime { get; init; } = attackTime; //攻撃回数

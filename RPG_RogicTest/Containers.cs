@@ -39,7 +39,13 @@ public class BattleStat()
         BattleNotification.TriggerPhase(Phase.OnHitDamage, actionUnit, target);
         return false;
     }
-
+    public bool TakeHeal(int heal)
+    {
+        if (IsDead) return false;
+        CurrentHp += heal;
+        if (CurrentHp > TotalHP) CurrentHp = TotalHP;
+        return true;
+    }
     public BattleStat Clone()
     {
         BattleStat clone = (BattleStat)this.MemberwiseClone();
@@ -345,3 +351,19 @@ public class UnitGuid
     }
 }
 #endregion
+
+#region 戦闘結果config
+public record BattleResultConfig
+(
+    int TotalExp,
+    int TotalGold,
+    List<DropItem>? DropItems
+);
+#endregion
+
+public record RewardConfig
+(
+    int Gold,
+    int Exp,
+    GameId<IDropItemTableId> DropTableId
+);

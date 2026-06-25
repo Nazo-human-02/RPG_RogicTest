@@ -7,7 +7,8 @@
         BattleStat stat = GetBattleStat(baseStat);
         DropRewardData rewardData = DropRewardMasterData.GetDropData(enemyData.DropId);
 
-        return new EnemyCharacter(baseStat.Name, enemyType, stat, enemyData.StatId, rewardData);
+        RewardConfig rewardConfig = new RewardConfig(rewardData.Gold, rewardData.Exp, enemyData.DropTableId);
+        return new EnemyCharacter(baseStat.Name, enemyType, stat, enemyData.StatId, rewardConfig);
     }
 
     public static MainCharacter CreateMainChara(GameId<IBaseStatId> mainID) //将来的にはキャラクターIDから生成

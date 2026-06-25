@@ -118,10 +118,10 @@ public abstract class Entity : IEquipable, ITalkable
 public class EnemyCharacter : Entity, IEnemy
 {
     public EnemyType EnemyType { get; set; }
-    public DropRewardData DropData { get; set; }
+    public RewardConfig DropData { get; set; }
     public GameId<IEnemyId> EnemyID;
 
-    public EnemyCharacter(string name, EnemyType enemyType, BattleStat battleStat, GameId<IBaseStatId> id, DropRewardData rewardData) 
+    public EnemyCharacter(string name, EnemyType enemyType, BattleStat battleStat, GameId<IBaseStatId> id, RewardConfig rewardData) 
         : base(name, battleStat, id)
     {
         Name = name;

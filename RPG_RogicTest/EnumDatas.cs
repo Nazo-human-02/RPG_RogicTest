@@ -5,18 +5,25 @@ public enum BodyParts { Head, Chest, Legs, Feet, Arms, Hands, LeftHand, RightHan
 public enum EquipmentType { Armor, Weapon, Blank };
 public enum ItemRarity { Common, Rare, SuperRare};
 public enum EnemyType { Normal, Boss };
-public enum ActionType { Attack, Skill, Guard, Escape};
+public enum ActionType { Attack, Skill, Guard, Escape, Item};
 public enum DirectionType { Left, Right, Center};
 public enum DungeonEventType { Battle, Treasure, None}
 public enum DamageType { Physical, Magical, Dot, Heal, None};
 public enum SkillType { Active, Passive};
 public enum NotifyStackType { Refresh, Independent, Ignore, Replace}　//Notifyの重複処理タイプ
 public enum CostType { CurrentMP, CurrentHP, MaxMP, MaxHP};
+public enum ReferType { Current, Max};
+public enum TargetPoint { HP, MP};
+public enum StatType { Hp, Mp, Atk, Def, Agi, Cri, Criper};
+public enum FieldValidType {DungeonBattleOnly, DungeonExploreOnly, OutsideBattleOnly, OutsideExploreOnly,
+    AnyBattle, AnywhereDungeon, AnywhereOutside, AnyExplore };
+public enum CompareType { More, MoreOrEqual, Less, LessOrEqual, Equal, NotEqual};
+public enum ConditionTarget { User, Target};
+public enum LogicalOperator { And, Or };
+public enum AilmentType { Poison, Sleep, Paralysis, Burn};
+public enum ItemCategory { Consumable, Tool, Unique, Valuable, Material};
 public enum TargetType { All, Ally, Enemy, Self};
-public enum EntityID {Hero, Npc, Slime, Goblin, Dragon }; //IDに置換
-public enum EnemyID { Slime, Goblin, Dragon }; //IDに置換
-public enum NpcID { Villager, Guard, Knight, King}; //IDに置換
-public enum BattleResultType { Victory, Defeat, Escape};
+public enum BattleResultType { Victory, Defeat, Escape, ContinueBattle};
 public enum Phase
 {
     StartBattle,

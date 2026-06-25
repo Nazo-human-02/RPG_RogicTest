@@ -8,6 +8,8 @@ public class PartyController(ILogProvider logProvider)
     private readonly ILogProvider log = logProvider;
     const int MaxPartyMember = 4; //パーティーメンバー,増えるかも
     public int OwnedGold { get; private set; } = 0;
+    public Inventory Inventory => _inventory; 
+    private readonly Inventory _inventory = new Inventory();
     
 
     public void AddMember(CharacterBase chara)
@@ -37,24 +39,33 @@ public class PartyController(ILogProvider logProvider)
         //選択してキャラをRemoveする処理
     }
 
-    public void GetReward(DropRewardData dropRewardData)
+    public void GetReward(BattleResultConfig dropRewardData)
     {
-        AddGold(dropRewardData.Gold);
+        AddGold(dropRewardData.TotalGold);
         log.Log($"_____戦利品を獲得した_____");
-        log.Log($"～{dropRewardData.Gold}G手に入れた！(所持金{OwnedGold})～");
+        log.Log($"～{dropRewardData.TotalGold}G手に入れた！(所持金{OwnedGold})～");
         foreach(Entity entity in PartyMember)
         {
             if(entity.Stat.IsDead)
             {
                 continue;
             }
-            ExpResult expResult = entity.Stat.expSet.GetExp(entity, dropRewardData.Exp);
+            ExpResult expResult = entity.Stat.expSet.GetExp(entity, dropRewardData.TotalExp);
             string text = $"{entity.Name}:{expResult.GetExp}exp獲得!";
             if(expResult.IsLevelUp)
             {
                 text += $"レベルアップ！[Lv{expResult.BeforeLevel}→Lv{expResult.AfterLevel}]";
             }
             log.Log(text);
+        }
+
+        if (dropRewardData.DropItems == null) return;
+        foreach(var item in dropRewardData.DropItems)
+        {
+            if (item.ItemId == null) continue;
+            _inventory.AddItem((GameId<IItemId>)item.ItemId, item.Amount);
+            var itemData = ItemMasterData.GetItemData((GameId<IItemId>)item.ItemId);
+            log.Log($"{itemData.ItemName}を{item.Amount}個手に入れた");
         }
     }
 
@@ -70,6 +81,39 @@ public class PartyController(ILogProvider logProvider)
         }
         OwnedGold -= gold;
         return true;
+    }
+}
+
+public class Inventory
+{
+    public IReadOnlyDictionary<GameId<IItemId>, int> ItemInventory => _itemInventory;
+    private Dictionary<GameId<IItemId>, int> _itemInventory = new();
+
+    public void AddItem(GameId<IItemId> itemID, int amount)
+    {
+        if(!_itemInventory.ContainsKey(itemID))
+            _itemInventory[itemID] = 0;
+        _itemInventory[itemID] += amount;
+        int maxStack = ItemMasterData.GetItemData(itemID).MaxStack;
+        if (_itemInventory[itemID] > maxStack)
+            _itemInventory[itemID] = maxStack;
+    }
+
+    public bool RemoveItem(GameId<IItemId> itemID, int amount)
+    {
+        if (!_itemInventory.ContainsKey(itemID))
+            return false;
+        if (_itemInventory[itemID] < amount)
+            return false;
+        _itemInventory[itemID] -= amount;
+        if (_itemInventory[itemID] <= 0)
+            _itemInventory.Remove(itemID);
+        return true;
+    }
+
+    public int GetItemAmount(GameId<IItemId> itemID)
+    {
+        return ItemInventory.TryGetValue(itemID, out var amount) ? amount : 0;
     }
 }
 public class EnemySpawnSelector(IRandomProvider randomProvider)

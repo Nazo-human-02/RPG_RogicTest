@@ -35,6 +35,10 @@ public interface IEquipable
 {
     Dictionary<BodyParts, Equipment> Equipments { get; set; }
 }
+public interface IUseable
+{
+    void Use(Entity user, params Entity[] target);
+}
 
 #endregion
 
