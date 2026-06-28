@@ -14,6 +14,7 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
     private readonly RouteSelector _routeSelector = new RouteSelector(logProvider, inputProvider);
     private readonly EnemySpawnSelector _enemySpawnSelector = new(randomProvider);
     private readonly EnemyGenerator _enemyGenerator = new(randomProvider);
+    private readonly BattleManagerGenerator _battleManagerGenerator = new();
     public bool IsEntering { get; private set; }
 
     public void EnterDungeon(PartyController enterdParty, int floorNum = 1)
@@ -24,7 +25,7 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
         while (IsEntering)
         {
             var dungeonFloor = new DungeonFloor(currentFloor);
-            bool isContinue = ProceedFloor(dungeonFloor, enterdParty);
+            bool isContinue = ProceedFloor(dungeonFloor, enterdParty, currentFloor);
             if(isContinue)
             {
                 currentFloor++;
@@ -39,7 +40,7 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
         _logProvider.Log("ダンジョンから脱出した");
     }
 
-    public bool ProceedFloor(DungeonFloor dungeonFloor, PartyController party) //false=脱出、true=進行
+    public bool ProceedFloor(DungeonFloor dungeonFloor, PartyController party, int floorNum) //false=脱出、true=進行
     {
         while(!dungeonFloor.IsBossReached)
         {
@@ -50,7 +51,7 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
                 case DungeonEventType.Battle:
                     if(selectedRoute.RouteContentData is BattleEventContent battle)
                     {
-                        BattleResultType battleResult = BattleStart(party, battle.EnemyParty);
+                        BattleResultType battleResult = BattleStart(party, battle.EnemyParty, floorNum);
                         if (battleResult == BattleResultType.Defeat)
                         {
                             _logProvider.Log("全滅してしまった...");
@@ -76,7 +77,8 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
         }
         _logProvider.Log("ボスの気配がする(仮)");
         MoveToBoss();
-        BattleResultType bossBattleResult = EncounterBoss(party, dungeonFloor);
+        var bosses = GetEncounterBoss(dungeonFloor);
+        var bossBattleResult = BattleStart(party, bosses, floorNum);
         if(bossBattleResult == BattleResultType.Defeat)
             return false;
         else if(bossBattleResult == BattleResultType.Victory)
@@ -85,22 +87,23 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
         return true;
     }
 
-    private BattleResultType BattleStart(PartyController party, IReadOnlyList<EnemyCharacter> enemyParty)
+    private BattleResultType BattleStart(PartyController party, IReadOnlyList<EnemyCharacter> enemyParty, int floorNum)
     {
         StringBuilder text = new StringBuilder();
         foreach (var enemy in enemyParty) text.Append($"[Lv{enemy.Stat.expSet.CurrentLevel}:{enemy.Name}]");
         _logProvider.Log(text.ToString());
         BattleManager battleManager = 
-            new BattleManager(party.PartyMember, enemyParty, _logProvider, _inputProvider, _randomProvider, party);
+            _battleManagerGenerator.Create(_logProvider, _randomProvider, _inputProvider,
+            enemyParty, party, FieldType.Dungeon, floorNum);
         return battleManager.BattleStart();
     }
-    private BattleResultType EncounterBoss(PartyController party, DungeonFloor dungeonFloor)
+    private IReadOnlyList<EnemyCharacter> GetEncounterBoss(DungeonFloor dungeonFloor)
     {
         SpawnEnemyTable spawnTable = dungeonFloor.GetSpawnTable();
         BossConfig bossConfig = _enemySpawnSelector.GetRandomBossParty(spawnTable.BossPartyConfigs);
         BossParty bossParty = BossPartyMasterData.GetBossParty(bossConfig.BossPartyID);
-        IReadOnlyList<EnemyCharacter> enemies = _enemyGenerator.CreateBossEnemies(bossParty.BossMembers);
-        return BattleStart(party, enemies);
+        IReadOnlyList<EnemyCharacter> bosses = _enemyGenerator.CreateBossEnemies(bossParty.BossMembers);
+        return bosses;
     }
     private void MoveToBoss() //仮置き
     {

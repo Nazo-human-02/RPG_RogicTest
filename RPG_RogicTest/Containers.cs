@@ -279,8 +279,8 @@ public class NotificationContainer
 #region 行動単位
 
 public class ActionUnit(ActionType actionType, Entity executor, Entity target, 
-    Skill? skill = null, UnitGuid? unitGuid = null, Guid? guid = null, DamageType? damageType = null, DamageInfo? damageInfo = null, 
-    ApplyNotifyInfo? notifyInfo = null, bool? isForced = null)
+    Skill? skill = null, UnitGuid? unitGuid = null, Guid? guid = null, DamageType? damageType = null,
+    DamageInfo? damageInfo = null, ApplyNotifyInfo? notifyInfo = null, UseItemInfo? useItemInfo = null, bool? isForced = null)
 {
     public UnitGuid ActionGuid { get; init; } = unitGuid ?? new UnitGuid();
     public Guid Guid { get; init; } = guid ?? Guid.NewGuid();
@@ -290,6 +290,7 @@ public class ActionUnit(ActionType actionType, Entity executor, Entity target,
     public DamageType DamageType { get; init; } = damageType ?? DamageType.Physical;
     public DamageInfo DamageInfo { get; init; } = damageInfo ?? new DamageInfo();
     public ApplyNotifyInfo ApplyNotifyInfo { get; init; } = notifyInfo ?? new ApplyNotifyInfo();
+    public UseItemInfo UseItemInfo { get; init; } = useItemInfo ?? new UseItemInfo();
     public string OnExecuteContent { get; private set; } = string.Empty;
     public Skill? Skill { get; init; } = skill;
     public bool IsForced { get; init; } = isForced ?? false;
@@ -303,6 +304,11 @@ public class DamageInfo()
     public int FixedDamage { get; set; } = 0;
     public bool IsCounter { get; set; } = false;
 
+}
+
+public class UseItemInfo()
+{
+    public GameId<IItemId> ItemId { get; set; }
 }
 
 public class ApplyNotifyInfo()

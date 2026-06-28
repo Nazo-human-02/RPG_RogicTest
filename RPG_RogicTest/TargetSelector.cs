@@ -1,21 +1,30 @@
 ﻿using System;
+using System.Net.Http.Headers;
 
 public class TargetSelect(ILogProvider log, IInputProvider input)
 {
     private readonly ILogProvider _log = log;
     private readonly IInputProvider _input = input;
 
-    public List<Entity> SelectingTargets(Entity selecter, BattleSession battleSession, TargetType targetType, int targetAmount)
+    public SelectionResult<List<Entity>> SelectingTargets(Entity selecter, BattleSession battleSession, TargetType targetType, int targetAmount)
     {
         List<Entity> _alltargets = GetTargetsList(selecter, battleSession, targetType);
         if(_alltargets.Count <= targetAmount)
         {
-            return _alltargets;
+            return new SelectionSuccess<List<Entity>>(_alltargets);
         }
         return GetSelectedTargetList(_alltargets, targetAmount);
     }
 
-    private List<Entity> GetSelectedTargetList(List<Entity> targetCandidates, int targetAmount)
+    public SelectionResult<List<Entity>> SelectingTargets(TargetResolveResult targetResolveResult)
+    {
+        if(targetResolveResult.TargetCandidates.Count <= targetResolveResult.TargetAmount)
+        {
+            return new SelectionSuccess<List<Entity>>(targetResolveResult.TargetCandidates);
+        }
+        return GetSelectedTargetList(targetResolveResult.TargetCandidates, targetResolveResult.TargetAmount);
+    }
+    private SelectionResult<List<Entity>> GetSelectedTargetList(List<Entity> targetCandidates, int targetAmount)
     {
         List<Entity> currentSelected = new List<Entity>();
         while (true)
@@ -32,7 +41,7 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
                 }
                 if (isDone)
                 {
-                    return currentSelected;
+                    return new SelectionSuccess<List<Entity>>(currentSelected);
                 }
             }
             else if(int.TryParse(selectNum, out var result) && result >= 1 && result <= targetCandidates.Count)
@@ -53,6 +62,10 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
                         _log.Log("選択可能数を超えます");
                     }
                 }
+            }
+            else if (result == 0)
+            {
+                return new SelectionCancel<List<Entity>>();
             }
             else
             {
@@ -82,7 +95,7 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
     }
     private string SelectionText(List<Entity> targetCandidates, List<Entity> currentSelecting)
     {
-        string text = "";
+        string text = "[もどる:<0>]\n";
         for(int i = 0; i < targetCandidates.Count; i++)
         {
             var target = targetCandidates[i];
@@ -92,7 +105,7 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
         }
         text += "\nEnterキーで確定";
         return text;
-    }
+    }  
 
     private List<Entity> GetTargetsList(Entity selecter, BattleSession battleSession, TargetType targetType)
     {

@@ -109,14 +109,3 @@ public class EscapeEffect() : ItemEffectBase
 }
 
 
-public record EffectContent
-(
-    Entity User,
-    IReadOnlyList<Entity> Targets,
-
-    BattleManager? BattleManager,
-    DungeonManager? DungeonManager,
-
-    BattleCalculator BattleCalculator,
-    IRandomProvider RandomProvider
-);

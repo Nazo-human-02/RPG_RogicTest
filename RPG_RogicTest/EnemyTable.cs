@@ -24,7 +24,7 @@ public static class EnemyTableMasterData
         _enemyTableData["table_enemy_002"] = new SpawnEnemyTable
             (
                 new BossPartyConfigs(new BossConfig("boss_001", 80), new BossConfig("boss_002", 20)),
-                new SpawnConfig("enemy_goblin", 15, 15, 100, EnemyType.Normal),
+                new SpawnConfig("enemy_goblin_001", 15, 15, 100, EnemyType.Normal),
                 new SpawnConfig("enemy_dragon_001", 21, 21, 10, EnemyType.Normal)
             );
     }

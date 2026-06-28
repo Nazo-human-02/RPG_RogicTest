@@ -14,6 +14,7 @@ public static class ItemMasterData
         _itemMasterDatabase.Clear();
 
         _itemMasterDatabase["item_test_000"] = new ItemData("item_test_000", "テスト用アイテム", ItemCategory.Consumable, 999,
+            new TargetData(TargetType.Ally, TargetSelectType.Self, 1),
             new ItemEffectData(new List<ItemEffectBase>() 
             { 
                 new HealEffect(1000, true, ReferType.Max, TargetPoint.HP)
@@ -24,9 +25,11 @@ public static class ItemMasterData
             }));
 
         _itemMasterDatabase["item_test_001"] = new ItemData("item_test_001", "テスト用素材1", ItemCategory.Material, 999,
+            new TargetData(TargetType.None, TargetSelectType.Self, 0),
             new ItemEffectData(new()), new ConditionData(LogicalOperator.And, new()));
 
         _itemMasterDatabase["item_test_002"] = new ItemData("item_test_002", "テスト用素材2", ItemCategory.Material, 999,
+            new TargetData(TargetType.None, TargetSelectType.Self, 0),
             new ItemEffectData([]), new ConditionData(LogicalOperator.And, []));
 
     }
@@ -46,6 +49,7 @@ public record ItemData
     string ItemName,
     ItemCategory ItemCategory,
     int MaxStack,
+    TargetData TargetData,
     ItemEffectData ItemEffectData,
     ConditionData ConditionData
 );
@@ -59,4 +63,14 @@ public record ConditionData
 (
     LogicalOperator LogicalOperator,
     List<ConditionBase> Conditions
+)
+{
+    public static readonly ConditionData Empty = new(LogicalOperator.And, []);
+}
+
+public record TargetData
+(
+    TargetType TargetType,
+    TargetSelectType TargetSelectType,
+    int TargetAmount
 );

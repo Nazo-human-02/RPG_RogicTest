@@ -43,19 +43,19 @@ public class FieldCondition(FieldValidType fieldValidType) : ConditionBase
         return (_fieldValidType) switch
         {
             FieldValidType.OutsideBattleOnly //ダンジョン外での戦闘のみ
-                => (conditionContext.IsBattle && !conditionContext.IsEnterDungeon),
+                => (conditionContext.IsBattle && conditionContext.FieldContext.FieldType != FieldType.Dungeon),
             FieldValidType.DungeonExploreOnly //戦闘外のダンジョン内のみ
-                => (!conditionContext.IsBattle && conditionContext.IsEnterDungeon),
+                => (!conditionContext.IsBattle && conditionContext.FieldContext.FieldType == FieldType.Dungeon),
             FieldValidType.OutsideExploreOnly //戦闘外のダンジョン外のみ
-                => (!conditionContext.IsBattle && !conditionContext.IsEnterDungeon),
+                => (!conditionContext.IsBattle && conditionContext.FieldContext.FieldType != FieldType.Dungeon),
             FieldValidType.DungeonBattleOnly //ダンジョン内の戦闘のみ
-                => (conditionContext.IsBattle && conditionContext.IsEnterDungeon),
+                => (conditionContext.IsBattle && conditionContext.FieldContext.FieldType == FieldType.Dungeon),
             FieldValidType.AnyBattle //戦闘中ならどこでも
                 => (conditionContext.IsBattle),
             FieldValidType.AnywhereDungeon //ダンジョン内ならいつでも
-                => (conditionContext.IsEnterDungeon),
+                => (conditionContext.FieldContext.FieldType == FieldType.Dungeon),
             FieldValidType.AnywhereOutside //ダンジョン外ならいつでも
-                => (!conditionContext.IsEnterDungeon),
+                => (conditionContext.FieldContext.FieldType != FieldType.Dungeon),
             FieldValidType.AnyExplore //戦闘外ならどこでも
                 => (!conditionContext.IsBattle),
             _ => false
@@ -190,8 +190,8 @@ public class FloorCondition(int floorNum, CompareType compareType) : ConditionBa
 
     public override bool CanExecute(ConditionContext conditionContext)
     {
-        if (conditionContext.DungeonFloor == null) return false;
-        int currentFloor = conditionContext.DungeonFloor.FloorNumber;
+        if (conditionContext.FieldContext.FieldType != FieldType.Dungeon) return false;
+        int currentFloor = conditionContext.FieldContext.FloorNumber;
         return CompareValue(currentFloor, _floorNum, _compareType);
 
     }
@@ -204,20 +204,9 @@ public class PartyCondition(int partyAmount, CompareType compareType) : Conditio
 
     public override bool CanExecute(ConditionContext conditionContext)
     {
-        int currentMember = conditionContext.Party.PartyMember.Count;
+        int currentMember = conditionContext.PartyController.PartyMember.Count;
         return CompareValue(currentMember, _partyAmount, _compareType);
     }
 }
 //使用者以外を参照する条件とかも作ってみたい
 
-public record ConditionContext
-(
-    bool IsEnterDungeon,
-    bool IsBattle,
-
-    Entity User,
-    PartyController Party,
-    Entity? Target,
-
-    DungeonFloor? DungeonFloor
-);
