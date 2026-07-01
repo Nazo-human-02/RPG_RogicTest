@@ -35,6 +35,22 @@ public abstract class ConditionBase
     }
 }
 
+public class LifeStateCondition(LifeState lifeState, ConditionTarget conditionTarget) : ConditionBase
+{
+    public override bool CanExecute(ConditionContext conditionContext)
+    {
+        var entity = GetConditionTarget(conditionContext, conditionTarget);
+        if(entity == null)
+            return false;
+        return (lifeState) switch
+        { 
+            LifeState.Alive => !entity.Stat.IsDead,
+            LifeState.Dead => entity.Stat.IsDead,
+            LifeState.Any => true,
+            _ => false
+        };
+    }
+}
 public class FieldCondition(FieldValidType fieldValidType) : ConditionBase
 {
     private readonly FieldValidType _fieldValidType = fieldValidType;

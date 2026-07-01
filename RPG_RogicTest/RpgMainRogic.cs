@@ -56,6 +56,8 @@ public static class RpgMainRogic
             main.SetSkill("skill_001");
             main.SetSkill("skill_002");
             main.SetSkill("skill_003");
+            main.SetSkill("skill_004");
+            partyController.Inventory.AddItem("item_test_000", 100);
             partyController.AddMember(main);
         }
 		log.Log("ゲームの初期化完了");

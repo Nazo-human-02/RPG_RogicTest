@@ -9,9 +9,36 @@ public static class GameSkillMasterData
     {
         _skillDataDict.Clear();
 
-        _skillDataDict["skill_001"] = new AffordSkillData("skill_001", SkillType.Active, "カウンターの構え", 2, "notify_001", TargetType.Self, 1, "cost_001");
-        _skillDataDict["skill_002"] = new AffordSkillData("skill_002", SkillType.Active, "どくどく", 1, "notify_002", TargetType.Enemy, 1, "cost_002");
-        _skillDataDict["skill_003"] = new AttackSkillData("skill_003", SkillType.Active, "スラッシュ", 3, "notify_000", TargetType.Enemy, 2, "cost_001", 2f, 3, false, 0);
+        _skillDataDict["skill_001"] = 
+            new EffectSkillData(
+                new SkillInfo("skill_001", "カウンターの構え", 2),
+                new TargetData(TargetType.Self, TargetSelectType.Self, 1),
+                ConditionData.Empty,
+                SkillType.Active, "cost_001",
+                [new AddNotifyEffect("notify_001"), new HealEffect(999, true, ReferType.Max, TargetPoint.HP)]);
+        _skillDataDict["skill_002"] = 
+            new EffectSkillData(
+                new SkillInfo("skill_002", "どくどく", 1),
+                new TargetData(TargetType.Enemy, TargetSelectType.Self, 1),
+                ConditionData.And([new LevelCondition(20, ConditionTarget.User, CompareType.MoreOrEqual), 
+                    new LifeStateCondition(LifeState.Alive, ConditionTarget.Target)]),
+                SkillType.Active, "cost_002",
+                [new AddNotifyEffect("notify_002")]);
+        _skillDataDict["skill_003"] =
+            new EffectSkillData(
+                new SkillInfo("skill_003", "スラッシュ", 3),
+                new TargetData(TargetType.Enemy, TargetSelectType.Self, 2),
+                ConditionData.Default,
+                SkillType.Active, "cost_001",
+                [new DamageEffect(0, false, 2f, 3)]);
+
+        _skillDataDict["skill_004"] =
+            new EffectSkillData(
+                new SkillInfo("skill_004", "即滅斬", 0),
+                new TargetData(TargetType.Enemy, TargetSelectType.Self, 99),
+                ConditionData.Default,
+                SkillType.Active, "cost_001",
+                [new DamageEffect(0, false, 10f, 5)]);
     }
 
     public static BaseSkillMasterData GetSkillData(GameId<ISkillId> skillID)
@@ -24,45 +51,10 @@ public static class GameSkillMasterData
     }
 }
 
-abstract public class BaseSkillMasterData(GameId<ISkillId> id, SkillType skillType , string skillName,
-    int coolTime, GameId<INotificationId> notificationID, GameId<ICostId> costId, TargetType targetType, int targetAmount = 1)
-{
-    public GameId<ISkillId> SkillId = id;
-    public SkillType SkillType = skillType;
-    public string SkillName = skillName;
-    public int CoolTime = coolTime;
-    public GameId<INotificationId> NotificationID = notificationID;
-    public GameId<ICostId> CostID = costId;
-    public TargetType TargetType = targetType;
-    public int TargetAmount = targetAmount;
-    abstract public Skill Create(CostData costData);
-}
-
-public class AffordSkillData(GameId<ISkillId> id, SkillType skillType, string skillName, int coolTime, 
-    GameId<INotificationId> notificationID, TargetType targetType, int targetAmount, GameId<ICostId> costId)
-    : BaseSkillMasterData(id, skillType, skillName, coolTime, notificationID, costId, targetType, targetAmount)
-{
-    public override Skill Create(CostData costData)
-    {
-        return 
-            new AffordNotifySkill(SkillId, SkillName, CoolTime, NotificationID, costData.CostType, costData.IsFixed, costData.Cost, TargetType, TargetAmount);
-    }
-}
-
-public class AttackSkillData(GameId<ISkillId> id, SkillType skillType, string skillName, int coolTime, GameId<INotificationId> notificationID,
-    TargetType targetType, int targetAmount, GameId<ICostId> costId, float attackRate, int attackTime, bool isFixed, int attackValue)
-    : BaseSkillMasterData(id, skillType, skillName, coolTime, notificationID, costId, targetType, targetAmount)
-{
-    public float AttackRate = attackRate;
-    public int AttackTime = attackTime;
-    public bool IsFixed = isFixed;
-    public int AttackValue = attackValue;
-
-    public override Skill Create(CostData costData)
-    {
-        return
-            new AttackSkill(SkillId, SkillName, CoolTime, NotificationID, costData.CostType, costData.IsFixed, costData.Cost, TargetType, TargetAmount, 
-            AttackRate, AttackTime, IsFixed, AttackValue);
-    }
-}
+public record struct SkillInfo
+(
+    GameId<ISkillId> SkillId,
+    string SkillName,
+    int MaxCoolTime
+);
 

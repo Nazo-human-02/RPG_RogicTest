@@ -123,14 +123,16 @@ public record FieldContext
 public record EffectContent
 (
     Entity User,
-    IReadOnlyList<Entity> Targets,
+    Entity Target,
 
     BattleManager? BattleManager,
-    DungeonManager? DungeonManager,
 
     BattleCalculator BattleCalculator,
     IRandomProvider RandomProvider
-);
+)
+{ 
+    public bool IsBattle => BattleManager != null; 
+}
 
 public record SelectItemData
 (

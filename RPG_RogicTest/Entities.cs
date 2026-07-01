@@ -84,7 +84,15 @@ public abstract class Entity : IEquipable, ITalkable
     }
     public void RemoveSkill(GameId<ISkillId> skillId)
     {
-        ValidSkills.RemoveWhere(skill => skill.SkillId == skillId);
+        ValidSkills.RemoveWhere(skill => skill.SkillInfo.SkillId == skillId);
+    }
+    public void ClearSkillCoolTime()
+    {
+        foreach (var skill in ValidSkills) skill.SetCoolTime(0);
+    }
+    public void ReduceSkillCoolTime()
+    {
+        foreach (var skill in ValidSkills) skill.ReduceCoolTime();
     }
     public void OnDeath()
     {

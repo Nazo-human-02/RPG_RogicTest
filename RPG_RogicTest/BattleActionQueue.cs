@@ -20,7 +20,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
             if(target == null)
                 continue;
             Guid guid = Guid.NewGuid();
-            ActionUnit actionUnit = new ActionUnit(ActionType.Attack, enemy, target, guid:guid);
+            ActionUnit actionUnit = new ActionUnit(ActionType.Attack, ActionSource.Default, enemy, target, guid:guid);
             actionUnits.Add([actionUnit]);
         }
         return actionUnits;
@@ -62,7 +62,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
         { 
             ActionType.Attack => ActionTypeAttack(actor, conditionContext),
             ActionType.Skill => ActionTypeSkill(actor, conditionContext),
-            ActionType.Item => ActionTypeItem(actor, conditionContext),
+            ActionType.UseItem => ActionTypeItem(actor, conditionContext),
             ActionType.Guard => ActionTypeGuard(actor, conditionContext),
             ActionType.Escape => ActionTypeEscape(actor, conditionContext),
             _ => throw new NotImplementedException("アクションタイプ:例外")
@@ -71,7 +71,8 @@ public class BattleActionQueue(GameSelectionService gameSelection)
     }
     private ActionUnit[]? ActionTypeAttack(Entity actor, ConditionContext conditionContext, ConditionData? conditionData = null)
     {
-        ConditionData condition = (conditionData != null) ? conditionData : ConditionData.Empty;
+        ConditionData condition =
+            (conditionData != null) ? conditionData : ConditionData.Default;
         TargetData targetData = new TargetData(TargetType.Enemy, TargetSelectType.Self, 1);
         TargetResolveResult resolveResult = _targetResolver.TargetResolve(condition, conditionContext, targetData);
         var result = _targetSelect.SelectingTargets(resolveResult);
@@ -79,7 +80,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
         {
             return null;
         }
-        ActionUnit action = new(ActionType.Attack, actor, targets.Value.First());
+        ActionUnit action = new(ActionType.Attack, ActionSource.Default, actor, targets.Value.First());
         return [action];
     }
     private ActionUnit[]? ActionTypeSkill(Entity actor, ConditionContext conditionContext)
@@ -89,12 +90,13 @@ public class BattleActionQueue(GameSelectionService gameSelection)
             var skill = SelectUseSkill(actor);
             if (skill is not SelectionSuccess<Skill> success)
                 return null; //commandSelectに戻る
-            SelectionResult<List<Entity>> result = SelectTargets(actor, success.Value, conditionContext.BattleSession!);
+            SelectionResult<List<Entity>> result = SelectTargets(actor, success.Value, conditionContext);
             if (result is not SelectionSuccess<List<Entity>> targets || targets.Value.Count == 0)
             {
                 continue; //skillSelectに戻る
             }
-            return ActionUnitCreator.GetActionUnit(ActionType.Skill, actor, targets.Value, success.Value);
+            return ActionUnitCreator.GetActionUnit(ActionType.Skill, ActionSource.FromSkill(success.Value), 
+                actor, targets.Value, success.Value);
             
         }
     }
@@ -115,19 +117,19 @@ public class BattleActionQueue(GameSelectionService gameSelection)
                 continue; //itemSelectに戻る
             }
             UseItemInfo useInfo = new UseItemInfo() { ItemId = success.Value.ItemId };
-            return ActionUnitCreator.GetActionUnit(ActionType.Item, actor, targets.Value, useItemInfo: useInfo);
+            return ActionUnitCreator.GetActionUnit(ActionType.UseItem, ActionSource.Default, actor, targets.Value, useItemInfo: useInfo);
         }
     }
 
     private ActionUnit[] ActionTypeGuard(Entity actor, ConditionContext conditionContext)
     {
-        ActionUnit actionUnit = new ActionUnit(ActionType.Guard, actor, actor);
+        ActionUnit actionUnit = new ActionUnit(ActionType.Guard, ActionSource.Default, actor, actor);
         return [actionUnit];
     }
 
     private ActionUnit[] ActionTypeEscape(Entity actor, ConditionContext conditionContext)
     {
-        ActionUnit actionUnit = new(ActionType.Escape, actor, actor);
+        ActionUnit actionUnit = new(ActionType.Escape, ActionSource.Default, actor, actor);
         return [actionUnit];
     }
     private SelectionResult<Skill> SelectUseSkill(Entity entity)
@@ -135,9 +137,10 @@ public class BattleActionQueue(GameSelectionService gameSelection)
         return _skillSelection.SkillSelect(entity);
     }
 
-    private SelectionResult<List<Entity>> SelectTargets(Entity entity, Skill skill, BattleSession battleSession)
+    private SelectionResult<List<Entity>> SelectTargets(Entity entity, Skill skill, ConditionContext conditionContext)
     {
-        return _targetSelect.SelectingTargets(entity, battleSession, skill.TargetType, skill.TargetAmount);
+        var resolveResult = _targetResolver.TargetResolve(skill.ConditionData, conditionContext, skill.TargetData);
+        return _targetSelect.SelectingTargets(entity, conditionContext.BattleSession!, skill.TargetData.TargetType, skill.TargetData.TargetAmount);
     }
     private SelectionResult<List<Entity>> SelectTargets(TargetResolveResult targetResolveResult)
     {

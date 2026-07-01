@@ -27,9 +27,9 @@ public static class CostMasterData
     }
 }
 
-public class CostData(CostType CostType, bool isFixed, int cost)
-{
-    public CostType CostType = CostType;
-    public bool IsFixed = isFixed;
-    public int Cost = cost;
-}
+public record struct CostData
+(
+    CostType CostType, 
+    bool IsFixed, 
+    int Cost
+);

@@ -19,6 +19,7 @@ public class BattleCalculator(IRandomProvider randomProvider)
         int result = (cri && validCritical) ? ApplyCriticalMultiplier(damage, attacker.TotalCri) : damage;
         return (cri, result);
     }
+    #region ダメージ計算機補助関数
     private bool IsFixedDamage(DamageInfo damageInfo)
     {
         return damageInfo.FixedDamage > 0;
@@ -49,4 +50,37 @@ public class BattleCalculator(IRandomProvider randomProvider)
     {
         return (int)(dmg * criticalMultiplier);
     }
+    #endregion
+
+    public (bool, int) CalculateHeal(BattleStat target, HealInfo healInfo)
+    {
+        bool doneCorrect = !target.IsDead;
+
+        if (healInfo.IsFixed)
+            return (doneCorrect, healInfo.HealValue);
+        int healAmount = CalculateBaseHeal(target, healInfo);
+        healAmount = ApplyHealMultiplier(healAmount, healInfo.HealMultiplier);
+        return (doneCorrect, healAmount);
+    }
+    #region 回復量計算機補助関数
+    private int CalculateBaseHeal(BattleStat targetStat, HealInfo healInfo)
+    {
+        (int current, int max) = (healInfo.TargetPoint) switch
+        {
+            TargetPoint.HP => (targetStat.CurrentHp, targetStat.TotalHP),
+            TargetPoint.MP => (targetStat.CurrentMp, targetStat.TotalMP),
+            _ => (1, 1)
+        };
+        return (healInfo.ReferType) switch
+        {
+            ReferType.Current => (int)(current * healInfo.HealValue / 100f),
+            ReferType.Max => (int)(max * healInfo.HealValue / 100f),
+            _ => healInfo.HealValue
+        };
+    }
+    private int ApplyHealMultiplier(int healAmount, float multiplier)
+    {
+        return (int)(healAmount * multiplier);
+    }
+    #endregion
 }

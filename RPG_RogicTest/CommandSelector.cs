@@ -16,7 +16,7 @@ public class CommandSelect(ILogProvider logProvider, IInputProvider input)
         commandOption[0] = ActionType.Attack;
         commandOption[1] = ActionType.Guard;
         commandOption[2] = ActionType.Skill;
-        commandOption[3] = ActionType.Item;
+        commandOption[3] = ActionType.UseItem;
         commandOption[4] = ActionType.Escape;
     }
 

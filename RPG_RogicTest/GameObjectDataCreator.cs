@@ -25,7 +25,8 @@ public static class NotifyCreator
 public static class ActionUnitCreator
 {
     public static ActionUnit[] GetActionUnit
-        (ActionType actionType, Entity executor, List<Entity> targets, Skill? skill = null, UseItemInfo? useItemInfo = null)
+        (ActionType actionType, ActionSource actionSource, Entity executor,
+        List<Entity> targets, Skill? skill = null, UseItemInfo? useItemInfo = null)
     {
         List<ActionUnit> actionUnits = new List<ActionUnit>();
         Guid guid = Guid.NewGuid();
@@ -33,7 +34,7 @@ public static class ActionUnitCreator
         foreach (Entity target in targets)
         {
             ActionUnit actionUnit =
-                new ActionUnit(actionType, executor, target, skill, unitGuid: unitGuid, guid: guid, useItemInfo:useItemInfo);
+                new ActionUnit(actionType, actionSource, executor, target, skill, unitGuid: unitGuid, guid: guid, useItemInfo:useItemInfo);
             actionUnits.Add(actionUnit);
         }
         return actionUnits.ToArray();

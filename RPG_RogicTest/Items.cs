@@ -9,6 +9,5 @@ public abstract class ItemBase(string name, GameId<IItemId> itemID, ItemCategory
     public string Name { get; init; } = name;
     public GameId<IItemId> ItemID { get; init; } = itemID;
     public ItemCategory Category { get; init; } = itemCategory;
-
 }
 

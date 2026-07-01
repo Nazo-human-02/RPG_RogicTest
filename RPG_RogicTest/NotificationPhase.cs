@@ -107,7 +107,8 @@ public class CounterNotify(GameId<INotificationId> notifyID, string logMassage, 
 		}
 		DamageInfo damageInfo = new DamageInfo() { DamageMultiplier = counterMultiple, IsCounter = true};
         ActionUnit action = 
-			new ActionUnit(ActionType.Attack, Owner, actionUnit.Executor, guid:Guid.NewGuid(), damageInfo:damageInfo, isForced:IsForcedAction);
+			new ActionUnit(ActionType.Attack, ActionSource.FromNotification(this), Owner, actionUnit.Executor,
+			guid:Guid.NewGuid(), damageInfo:damageInfo, isForced:IsForcedAction);
         action.SetContent($"--{Owner.Name}のカウンター！");
         return action;
     }
@@ -134,7 +135,8 @@ public class PoisonNotify(GameId<INotificationId> notifyID, string logMassage, P
 		int poisonDmg = (IsFixed) ? poisonRate : (ReferMax) ? (int)(Owner.Stat.MaxHp * poisonRate / 100f) : (int)(Owner.Stat.CurrentHp * poisonRate / 100f);
 		DamageInfo damageInfo = new DamageInfo() {FixedDamage = poisonDmg };
         ActionUnit action =
-			new ActionUnit(ActionType.Attack, Owner, Owner, damageInfo:damageInfo, damageType:DamageType.Dot, guid:Guid.NewGuid(), isForced:IsForcedAction);
+			new ActionUnit(ActionType.Attack, ActionSource.FromNotification(this), Owner, Owner, 
+			damageInfo:damageInfo, damageType:DamageType.Dot, guid:Guid.NewGuid(), isForced:IsForcedAction);
         action.SetContent($"--{Owner.Name}は毒にやられている");
         return action;
     }

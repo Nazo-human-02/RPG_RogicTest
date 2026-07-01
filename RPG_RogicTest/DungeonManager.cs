@@ -51,15 +51,15 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
                 case DungeonEventType.Battle:
                     if(selectedRoute.RouteContentData is BattleEventContent battle)
                     {
-                        BattleResultType battleResult = BattleStart(party, battle.EnemyParty, floorNum);
-                        if (battleResult == BattleResultType.Defeat)
+                        var battleResult = BattleStart(party, battle.EnemyParty, floorNum);
+                        if (battleResult.BattleResultType == BattleResultType.Defeat)
                         {
                             _logProvider.Log("全滅してしまった...");
                             return false;
                         }
-                        else if (battleResult == BattleResultType.Victory)
+                        else if (battleResult.BattleResultType == BattleResultType.Victory)
                             _logProvider.Log("\n戦闘に勝利した！");
-                        else if (battleResult == BattleResultType.Escape)
+                        else if (battleResult.BattleResultType == BattleResultType.Escape)
                             _logProvider.Log($"{party.PartyMember.First().Name}は逃走に成功した");
                     }
                     break;
@@ -79,15 +79,15 @@ public class DungeonManager(ILogProvider logProvider, IRandomProvider randomProv
         MoveToBoss();
         var bosses = GetEncounterBoss(dungeonFloor);
         var bossBattleResult = BattleStart(party, bosses, floorNum);
-        if(bossBattleResult == BattleResultType.Defeat)
+        if(bossBattleResult.BattleResultType == BattleResultType.Defeat)
             return false;
-        else if(bossBattleResult == BattleResultType.Victory)
+        else if(bossBattleResult.BattleResultType == BattleResultType.Victory)
             _logProvider.Log("\nフロアボスを撃破した！");
 
         return true;
     }
 
-    private BattleResultType BattleStart(PartyController party, IReadOnlyList<EnemyCharacter> enemyParty, int floorNum)
+    private BattleResult BattleStart(PartyController party, IReadOnlyList<EnemyCharacter> enemyParty, int floorNum)
     {
         StringBuilder text = new StringBuilder();
         foreach (var enemy in enemyParty) text.Append($"[Lv{enemy.Stat.expSet.CurrentLevel}:{enemy.Name}]");

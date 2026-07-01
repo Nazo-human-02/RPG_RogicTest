@@ -47,7 +47,7 @@ public class SkillSelection(ILogProvider log, IInputProvider inputProvider)
                 }
 
                 selected = skill;
-                _log.Log($"現在選択中:{selected.Name}(Enterキーで確定)");
+                _log.Log($"現在選択中:{selected.SkillInfo.SkillName}(Enterキーで確定)");
             }
         }
     }
@@ -56,7 +56,7 @@ public class SkillSelection(ILogProvider log, IInputProvider inputProvider)
         string text = "[0:もどる]";
         for (int i = 0; i < skillList.Count; i++)
         {
-            text += $"[{i + 1}:{skillList[i].Name}]";
+            text += $"[{i + 1}:{skillList[i].SkillInfo.SkillName}]";
         }
         text += "\nEnterキーで確定";
         _log.Log(text);

@@ -58,9 +58,9 @@ public record BattleServices
 
 public class BattleRuntimeContext()
 {
-    public Queue<ActionUnit[]> ActionQueue { get; private set; } = new();
-    public Queue<ActionUnit[]> InterruptAction { get; } = new();
-    public List<(ActionUnit, int)> SubStackInterrupt { get; } = new();
+    public Queue<ActionUnit[]> ActionQueue { get; private set; } = new(); //基本キュー
+    public Queue<ActionUnit[]> InterruptAction { get; } = new(); //割り込み待機キュー
+    public List<(ActionUnit, int)> SubStackInterrupt { get; } = new(); //割り込み待機キューに積むための一時スタック
 
     public void Enqueue(Queue<ActionUnit[]> actionUnits)
     {
@@ -89,6 +89,7 @@ public class BattleRuntimeContext()
         ReleaseStack();
         if(InterruptAction.Count > 0)
         {
+            Console.WriteLine("割り込みアクションを取得");
             nextAction = InterruptAction.Dequeue();
             return true;
         }

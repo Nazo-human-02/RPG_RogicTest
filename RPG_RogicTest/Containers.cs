@@ -278,17 +278,20 @@ public class NotificationContainer
 
 #region 行動単位
 
-public class ActionUnit(ActionType actionType, Entity executor, Entity target, 
+public class ActionUnit(ActionType actionType,ActionSource actionSource, Entity executor, Entity target, 
     Skill? skill = null, UnitGuid? unitGuid = null, Guid? guid = null, DamageType? damageType = null,
-    DamageInfo? damageInfo = null, ApplyNotifyInfo? notifyInfo = null, UseItemInfo? useItemInfo = null, bool? isForced = null)
+    DamageInfo? damageInfo = null, HealInfo? healInfo = null, ApplyNotifyInfo? notifyInfo = null, UseItemInfo? useItemInfo = null, 
+    bool? isForced = null)
 {
     public UnitGuid ActionGuid { get; init; } = unitGuid ?? new UnitGuid();
     public Guid Guid { get; init; } = guid ?? Guid.NewGuid();
     public Entity Executor { get; init; } = executor;
     public Entity Target { get; init; } = target;
     public ActionType ActionType { get; init; } = actionType;
+    public ActionSource ActionSource { get; init; } = actionSource;
     public DamageType DamageType { get; init; } = damageType ?? DamageType.Physical;
     public DamageInfo DamageInfo { get; init; } = damageInfo ?? new DamageInfo();
+    public HealInfo HealInfo { get; init; } = healInfo ?? new();
     public ApplyNotifyInfo ApplyNotifyInfo { get; init; } = notifyInfo ?? new ApplyNotifyInfo();
     public UseItemInfo UseItemInfo { get; init; } = useItemInfo ?? new UseItemInfo();
     public string OnExecuteContent { get; private set; } = string.Empty;
@@ -298,14 +301,21 @@ public class ActionUnit(ActionType actionType, Entity executor, Entity target,
     public void SetContent(string content) => OnExecuteContent = content;
 }
 
-public class DamageInfo()
+public record DamageInfo()
 {
     public float DamageMultiplier { get; set; } = 1.0f;
     public int FixedDamage { get; set; } = 0;
     public bool IsCounter { get; set; } = false;
 
 }
-
+public record HealInfo()
+{
+    public int HealValue { get; set; } = 0;
+    public float HealMultiplier { get; set; } = 1.0f;
+    public TargetPoint TargetPoint { get; set; } = TargetPoint.HP;
+    public ReferType ReferType { get; set; } = ReferType.Max;
+    public bool IsFixed { get; set; } = false;
+}
 public class UseItemInfo()
 {
     public GameId<IItemId> ItemId { get; set; }
@@ -356,6 +366,21 @@ public class UnitGuid
         ProcessedEntities[currentPhase].Add(entity);
     }
 }
+
+public record ActionSource
+(
+    ActionSourceType SourceType,
+    Skill? Skill = null,
+    GameId<IItemId> ItemId = default,
+    Notification? Notification = null
+)
+{
+    public static ActionSource Default => new (ActionSourceType.Default);
+    public static ActionSource FromSkill(Skill skill) => new (ActionSourceType.Skill, skill);
+    public static ActionSource FromItem(GameId<IItemId> itemId) => new (ActionSourceType.Item, null, itemId);
+    public static ActionSource FromNotification(Notification notification) => 
+        new (ActionSourceType.Notification, null, default, notification);
+}
 #endregion
 
 #region 戦闘結果config
@@ -372,4 +397,10 @@ public record RewardConfig
     int Gold,
     int Exp,
     GameId<IDropItemTableId> DropTableId
+);
+
+public record BattleResult
+(
+    BattleResultType BattleResultType,
+    bool ExitDungeon
 );

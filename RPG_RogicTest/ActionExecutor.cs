@@ -13,7 +13,7 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
     {
         _loggedAction.Clear();
     }
-    public void ExecuteAction(ActionUnit[] actionUnits, BattleManager battleManager)
+    public void ExecuteAction(ActionUnit[] actionUnits, BattleManager battleManager, ConditionContext conditionContext)
     {
         if (!string.IsNullOrEmpty(actionUnits[0].OnExecuteContent) && !_loggedAction.Contains(actionUnits[0].Guid))
         {
@@ -41,7 +41,7 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
                     break;
 
                 case ActionType.Attack:
-                    AttackAction(actionUnit.Executor, actionUnit.Target, actionUnit, loopCount);
+                    AttackAction(actionUnit.Executor, actionUnit.Target, actionUnit, loopCount, battleManager);
                     break;
 
                 case ActionType.Guard:
@@ -49,20 +49,31 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
                     break;
 
                 case ActionType.Skill:
-                    SkillAction(battleManager, actionUnit, actionUnit.Executor, loopCount);
+                    SkillAction(battleManager, conditionContext, actionUnit, actionUnit.Executor, loopCount);
                     break;
 
                 case ActionType.Escape:
-                    EscapeAction(actionUnit, actionUnit.Executor);
+                    EscapeAction(actionUnit, actionUnit.Executor, battleManager);
+                    break;
+
+                case ActionType.UseItem:
+                    UseItemAction(actionUnit, conditionContext, loopCount, battleManager);
+                    break;
+
+                case ActionType.Heal:
+                    HealAction(actionUnit, conditionContext, loopCount, battleManager);
                     break;
 
             }
+
+            if (battleManager.ExitRequested)
+                return;
 
             BattleNotification.TriggerPhase(Phase.EndAction, actionUnit, null); //アクション終了
         }
     }
 
-    private void AttackAction(Entity attacker, Entity target, ActionUnit actionUnit, int loopNum)
+    private void AttackAction(Entity attacker, Entity target, ActionUnit actionUnit, int loopNum, BattleManager battleManager)
     {
         if (string.IsNullOrEmpty(actionUnit.OnExecuteContent) && loopNum == 1 && !_loggedAction.Contains(actionUnit.Guid))
         {
@@ -93,6 +104,9 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
 
         }
 
+        if (battleManager.ExitRequested)
+            return;
+
         BattleNotification.TriggerPhase(Phase.AfterAttack, actionUnit, target); //攻撃直後
 
     }
@@ -106,7 +120,8 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
         BattleNotification.TriggerPhase(Phase.AfterGuard, actionUnit, guarder); //ガード直後
     }
 
-    private void SkillAction(BattleManager battleManager, ActionUnit actionUnit, Entity executor, int loopNum)
+    private void SkillAction
+        (BattleManager battleManager, ConditionContext conditionContext, ActionUnit actionUnit, Entity executor, int loopNum)
     {
         BattleNotification.TriggerPhase(Phase.BeforeSkill, actionUnit, executor);
 
@@ -120,6 +135,9 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
         }
         else
         {
+            EffectContent content = new(actionUnit.Executor, actionUnit.Target, 
+                battleManager, _battleCalculator, conditionContext.RandomProvider);
+
             if (actionUnit.Skill is ActiveSkill activeSkill)
             {
                 bool success = activeSkill.TryPayCost(executor);
@@ -129,34 +147,111 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
                 }
                 else
                 {
-                    actionUnit.Skill.ExecuteSkill(battleManager, actionUnit, actionUnit.Target);
+                    actionUnit.Skill.ExecuteSkill(actionUnit, actionUnit.Target, content);
                     if (loopNum == 1 && !_loggedAction.Contains(actionUnit.Guid))
                     {
-                        _logProvider.Log($"--{executor.Name}の{actionUnit.Skill.Name}!");
+                        _logProvider.Log($"--{executor.Name}の{actionUnit.Skill.SkillInfo.SkillName}!");
                         actionUnit.Skill.SetCoolTime();
                     }
                 }
             }
             else
             {
-                actionUnit.Skill.ExecuteSkill(battleManager, actionUnit, actionUnit.Target);
+                actionUnit.Skill.ExecuteSkill(actionUnit, actionUnit.Target, content);
                 if (loopNum == 1 && !_loggedAction.Contains(actionUnit.Guid))
                 {
-                    _logProvider.Log($"--{executor.Name}の{actionUnit.Skill.Name}!");
+                    _logProvider.Log($"--{executor.Name}の{actionUnit.Skill.SkillInfo.SkillName}!");
                     actionUnit.Skill.SetCoolTime();
                 }
             }
         }
 
+        if (battleManager.ExitRequested)
+            return;
+
         BattleNotification.TriggerPhase(Phase.AfterSkill, actionUnit, executor);
     }
 
-    private void EscapeAction(ActionUnit actionUnit, Entity executor)
+    private void EscapeAction(ActionUnit actionUnit, Entity executor, BattleManager battleManager)
     {
         BattleNotification.TriggerPhase(Phase.BeforeEscape, actionUnit, executor);
 
         _logProvider.Log($"--{executor.Name}は逃げ出した");
 
         BattleNotification.TriggerPhase(Phase.AfterEscape, actionUnit, executor);
+
+        battleManager.RequestExitDungeon();
+    }
+
+    private void UseItemAction
+        (ActionUnit actionUnit, ConditionContext conditionContext, int loopNum, BattleManager battleManager)
+    {
+        BattleNotification.TriggerPhase(Phase.BeforeUseItem, actionUnit, actionUnit.Executor);
+
+
+        if(actionUnit.UseItemInfo.ItemId.IsEmpty)
+        {
+            _logProvider.Log($"{actionUnit.Executor.Name}は使うアイテムがなく困っている");
+        }
+
+        else
+        {
+            bool canUse = ItemMasterData.TryUseItem(actionUnit.UseItemInfo.ItemId,
+                conditionContext with { User = actionUnit.Executor, Target = actionUnit.Target }, out var itemData);
+            if (string.IsNullOrEmpty(actionUnit.OnExecuteContent) && loopNum == 1)
+            {
+                _logProvider.Log($"{actionUnit.Executor.Name}は{itemData.ItemName}を使用した");
+            }
+            if (canUse)
+            {
+                foreach (var effect in itemData.ItemEffectData.ItemEffects)
+                {
+                    EffectContent content = 
+                        new(actionUnit.Executor, actionUnit.Target, 
+                        battleManager, _battleCalculator, conditionContext.RandomProvider);
+                    var result = effect.ApplyEffect(content, ActionSource.FromItem(actionUnit.UseItemInfo.ItemId));
+                    if (!string.IsNullOrEmpty(result.Message))
+                        _logProvider.Log(result.Message);
+                    if(result.ActionUnit != null)
+                    {
+                        battleManager.InsertInterruptAction(result.ActionUnit);
+                    }
+                }
+                conditionContext.PartyController.Inventory.RemoveItem(actionUnit.UseItemInfo.ItemId, 1);
+            }
+            else
+            {
+                _logProvider.Log($"しかしうまくいかなかった");
+            }
+        }
+        if (battleManager.ExitRequested)
+            return;
+        BattleNotification.TriggerPhase(Phase.AfterUseItem, actionUnit, actionUnit.Executor);
+    }
+
+    private void HealAction(ActionUnit actionUnit, ConditionContext conditionContext, int loopNum, BattleManager battleManager)
+    {
+        BattleNotification.TriggerPhase(Phase.BeforeHeal, actionUnit, actionUnit.Target);
+
+        (bool doneCorrext, int healAmount) = _battleCalculator.CalculateHeal(actionUnit.Target.Stat, actionUnit.HealInfo);
+
+        string message = "";
+        if(doneCorrext)
+        {
+            actionUnit.Target.Stat.TakeHeal(healAmount);
+            message = $"{actionUnit.Target.Name}の{actionUnit.HealInfo.TargetPoint.ToString()}が{healAmount}回復した";
+
+        }
+        else
+        {
+            message =
+                $"{actionUnit.Executor.Name}は{actionUnit.Target.Name}を回復しようとしたが" +
+                $"既に{actionUnit.Target.Name}は力尽きていた";
+        }
+        _logProvider.Log(message);
+        if (battleManager.ExitRequested)
+            return;
+
+        BattleNotification.TriggerPhase(Phase.AfterHeal, actionUnit, actionUnit.Target);
     }
 }
