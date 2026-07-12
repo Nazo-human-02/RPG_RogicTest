@@ -217,7 +217,9 @@ namespace RpgLogic_Test
             //Arrange
             var originalEntity = new MainCharacter("original", CreateStat(atk:10), "ori_000");
             originalEntity.Notifications.AddNotify(new NullNotify("test_000", "test"));
-            originalEntity.DirectSetSkill(new NullBrankSkill("skill_000", "brank", 0, "test_000", CostType.MaxHP, true, 0, TargetType.All, 1)); //スキル変更の影響確認_4
+            originalEntity.DirectSetSkill(new EffectSkill(
+                new("skill_001", "テスト用", 0),
+                new CostData(), new(), ConditionData.Empty, [])); //スキル変更の影響確認_4
             //Act
             var clonedEntity = originalEntity.Clone();
             //Assert
@@ -233,8 +235,10 @@ namespace RpgLogic_Test
             Assert.Equal(originalEntity.ValidSkills.Count, clonedEntity.ValidSkills.Count);
             Assert.NotSame(originalEntity.ValidSkills.First(), clonedEntity.ValidSkills.First());
             Assert.NotSame(originalEntity.ValidSkills, clonedEntity.ValidSkills);
-            Assert.NotSame(originalEntity.Equipments[BodyParts.Head], clonedEntity.Equipments[BodyParts.Head]);
-            Assert.NotSame(originalEntity.Equipments, clonedEntity.Equipments);
+            Assert.NotSame(originalEntity.EquipmentController.Equipments[BodyParts.Head],
+                clonedEntity.EquipmentController.Equipments[BodyParts.Head]);
+            Assert.NotSame(originalEntity.EquipmentController.Equipments,
+                clonedEntity.EquipmentController.Equipments);
             Assert.Equal(originalEntity.Stat.expSet.CurrentLevel, clonedEntity.Stat.expSet.CurrentLevel);
             Assert.Equal(originalEntity.Stat.EquipmentModStat.AtkMod.BaseFlat, clonedEntity.Stat.EquipmentModStat.AtkMod.BaseFlat);
             Assert.NotSame(originalEntity.Stat.EquipmentModStat, clonedEntity.Stat.EquipmentModStat);
@@ -250,8 +254,9 @@ namespace RpgLogic_Test
             originalEntity.Stat.CurrentHp = 50; //体力変更の影響確認_1
             originalEntity.Stat.baseStat.Atk = 2000; //攻撃力変更の影響確認_2
             originalEntity.Notifications.AddNotify(new NullNotify("test_000", "test")); //通知効果変更の影響確認_3
-            originalEntity.DirectSetSkill(new NullBrankSkill("skill_000", "brank", 0, "test_000", CostType.MaxHP, true, 0, TargetType.All, 1)); //スキル変更の影響確認_4
-            originalEntity.Equipments[BodyParts.Head] = new Equipment();　//装備変更の影響確認_5
+            originalEntity.DirectSetSkill(new EffectSkill(new("skill_001", "test", 0), new(), new(), ConditionData.Empty, [])); //スキル変更の影響確認_4
+            originalEntity.EquipmentController.TryEquip(new(new("test", "equip_test", EquipmentType.Armor, BodyParts.Head), new())
+                , out var previousEquipment);　//装備変更の影響確認_5
             originalEntity.Stat.expSet.SetLevel(100); //レベル変更の影響確認_6
             originalEntity.Stat.EquipmentModStat.AtkMod.BaseFlat = 5; //装備補正値変更の影響確認_7
 
@@ -262,7 +267,8 @@ namespace RpgLogic_Test
             Assert.NotEqual(originalEntity.Stat.baseStat.Atk, clonedEntity.Stat.baseStat.Atk); //2
             Assert.NotSame(originalEntity.Notifications.Notifications, clonedEntity.Notifications.Notifications); //3
             Assert.NotSame(originalEntity.ValidSkills, clonedEntity.ValidSkills); //4
-            Assert.NotSame(originalEntity.Equipments[BodyParts.Head], clonedEntity.Equipments[BodyParts.Head]); //5
+            Assert.NotSame(originalEntity.EquipmentController.Equipments[BodyParts.Head],
+                clonedEntity.EquipmentController.Equipments[BodyParts.Head]); //5
             Assert.NotEqual(originalEntity.Stat.expSet.CurrentLevel, clonedEntity.Stat.expSet.CurrentLevel); //6
             Assert.NotEqual(originalEntity.Stat.EquipmentModStat.AtkMod.BaseFlat, clonedEntity.Stat.EquipmentModStat.AtkMod.BaseFlat); //7
         }

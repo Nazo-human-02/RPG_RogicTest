@@ -55,6 +55,11 @@ public class BattleStat()
         clone.NotifyModStat = this.NotifyModStat.Clone();
         return clone;
     }
+
+    public void UpDateEquipStat(ModifierStat equipMod)
+    {
+        EquipmentModStat = equipMod;
+    }
 }
 public class ExpSet()
 {
@@ -112,34 +117,65 @@ public class BaseStat(int Atk = 1, int Def = 1, int Agi = 1, float CriPer = 0f, 
 
 
 public class ModifierStat
+    (ModifiableStat? hp = null, ModifiableStat? mp = null, 
+    ModifiableStat? atk = null, ModifiableStat? def = null, ModifiableStat? agi = null,
+    ModifiableStat? criPer = null, ModifiableStat? cri = null)
 {
-    public ModifiableStat HpMod = new ModifiableStat();
-    public ModifiableStat MpMod = new ModifiableStat();
-    public ModifiableStat AtkMod = new ModifiableStat();
-    public ModifiableStat DefMod = new ModifiableStat();
-    public ModifiableStat AgiMod = new ModifiableStat();
-    public ModifiableStat CriPerMod = new ModifiableStat();
-    public ModifiableStat CriMod = new ModifiableStat();
+    public ModifiableStat HpMod = hp ?? new ModifiableStat();
+    public ModifiableStat MpMod = mp ?? new ModifiableStat();
+    public ModifiableStat AtkMod = atk ?? new ModifiableStat();
+    public ModifiableStat DefMod = def ?? new ModifiableStat();
+    public ModifiableStat AgiMod = agi ?? new ModifiableStat();
+    public ModifiableStat CriPerMod = criPer ?? new ModifiableStat();
+    public ModifiableStat CriMod = cri ?? new ModifiableStat();
 
     public ModifierStat Clone()
     {
         ModifierStat clone = new ModifierStat();
-        clone.HpMod = HpMod.Clone();
-        clone.MpMod = MpMod.Clone();
-        clone.AtkMod = AtkMod.Clone();
-        clone.DefMod = DefMod.Clone();
-        clone.AgiMod = AgiMod.Clone();
-        clone.CriPerMod = CriPerMod.Clone();
-        clone.CriMod = CriMod.Clone();
+        foreach (var type in Enum.GetValues<StatType>())
+        {
+            clone[type] = this[type].Clone();
+        }
         return clone;
     }
+
+    public ModifiableStat this[StatType statType]
+    {
+        get
+        {
+            return statType switch
+            {
+                StatType.Hp => HpMod,
+                StatType.Mp => MpMod,
+                StatType.Atk => AtkMod,
+                StatType.Def => DefMod,
+                StatType.Agi => AgiMod,
+                StatType.Criper => CriPerMod,
+                StatType.Cri => CriMod,
+                _ => throw new ArgumentOutOfRangeException(nameof(statType), statType, null)
+            };
+        }
+        set
+        {
+            switch (statType)
+            {
+                case StatType.Hp: HpMod = value; break;
+                case StatType.Mp: MpMod = value; break;
+                case StatType.Atk: AtkMod = value; break;
+                case StatType.Def: DefMod = value; break;
+                case StatType.Agi: AgiMod = value; break;
+                case StatType.Criper: CriPerMod = value; break;
+                case StatType.Cri: CriMod = value; break;
+            }
+        }
+    }
 }
-public class ModifiableStat
+public class ModifiableStat(float baseFlat = 0f, float flatOffset = 0f, float ratePercent = 1.0f, float finalRate = 1.0f)
 {
-    public float BaseFlat { get; set; } = 0f;
-    public float FlatOffset { get; set; } = 0f;
-    public float RatePercent { get; set; } = 1.0f;
-    public float FinalRate { get; set; } = 1.0f;
+    public float BaseFlat { get; set; } = baseFlat; //基礎値加算
+    public float FlatOffset { get; set; } = flatOffset; //加算
+    public float RatePercent { get; set; } = ratePercent; //乗算
+    public float FinalRate { get; set; } = finalRate; //最終乗算
 
     public int TotalValue(int stat)
     {
@@ -153,16 +189,12 @@ public class ModifiableStat
     public static ModifierStat GetTotalModifier(ModifierStat mod1, ModifierStat mod2)
     {
         ModifierStat result = new ModifierStat();
-        result.HpMod = GetTotalModifiable(mod1.HpMod, mod2.HpMod);
-        result.MpMod = GetTotalModifiable(mod1.MpMod, mod2.MpMod);
-        result.AtkMod = GetTotalModifiable(mod1.AtkMod, mod2.AtkMod);
-        result.DefMod = GetTotalModifiable(mod1.DefMod, mod2.DefMod);
-        result.AgiMod = GetTotalModifiable(mod1.AgiMod, mod2.AgiMod);
-        result.CriPerMod = GetTotalModifiable(mod1.CriPerMod, mod2.CriPerMod);
-        result.CriMod = GetTotalModifiable(mod1.CriMod, mod2.CriMod);
+        foreach(var type in Enum.GetValues<StatType>())
+        {
+            result[type] = GetTotalModifiable(mod1[type], mod2[type]);
+        }
         return result;
     }
-
     public static ModifiableStat GetTotalModifiable(ModifiableStat mod1, ModifiableStat mod2)
     {
         ModifiableStat result = new ModifiableStat();
@@ -177,17 +209,35 @@ public class ModifiableStat
     {
         return (ModifiableStat)this.MemberwiseClone();
     }
-}
-public class Equipment
-{
-    public EquipmentType equipmentType;
-    public BodyParts bodyParts;
-
-    public Equipment Clone()
+    
+    public float this[ModifierType modifierType]
     {
-        return (Equipment)this.MemberwiseClone();
+        get
+        {
+            return modifierType switch
+            {
+                ModifierType.BaseFlat => BaseFlat,
+                ModifierType.FlatOffset => FlatOffset,
+                ModifierType.RatePercent => RatePercent,
+                ModifierType.FinalRate => FinalRate,
+                _ => throw new ArgumentOutOfRangeException(nameof(modifierType), modifierType, null)
+            };
+        }
+        set
+        {
+            switch (modifierType)
+            {
+                case ModifierType.BaseFlat: BaseFlat = value; break;
+                case ModifierType.FlatOffset: FlatOffset = value; break;
+                case ModifierType.RatePercent: RatePercent = value; break;
+                case ModifierType.FinalRate: FinalRate = value; break;
+            }
+        }
     }
 }
+
+
+
 
 public class NotificationContainer
 {

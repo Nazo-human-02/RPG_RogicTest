@@ -58,7 +58,11 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	}
     public BattleResult BattleStart()
 	{
-		_providorContext.LogProvider.Log("戦闘開始");
+		_providorContext.LogProvider.WriteLog("戦闘開始");
+
+		_providorContext.ScreenProvider.Set(ScreenLayer.Content, "戦闘開始");
+		_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
+		_providorContext.ScreenProvider.WaitForEnter();
 
 		BattleNotification.Initialize(_battleSession, this);
 
@@ -72,7 +76,13 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 		var conditionContext = _baseConditioncontext with { CurrentTurn = currentTurn };
         while (!isOver)
 		{
-			_providorContext.LogProvider.Log($"-----------{currentTurn}ターン目---------------");
+			//_providorContext.LogProvider.WriteLog($"-----------{currentTurn}ターン目---------------");
+			_providorContext.ScreenProvider.Set(ScreenLayer.Label, $"-----------{currentTurn}ターン目---------------");
+			_providorContext.ScreenProvider.Set
+				(ScreenLayer.SubView, TextMasterData.GetEncounterEnemyText(_battleSession.GetAliveEnemy()));
+			_providorContext.ScreenProvider.Clear(ScreenLayer.Content);
+            _providorContext.ScreenProvider.RefreshUntil();
+
             conditionContext = _baseConditioncontext with { CurrentTurn = currentTurn };
 			BattleNotification.UpDateEntities();
 			List<ActionUnit[]> enemyActions = _battleServices.BattleActionQueue.CreateEnemyActions(conditionContext);
@@ -98,9 +108,14 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 			foreach (Entity entity in _battleSession.GetAllEntity()) entity.ReduceSkillCoolTime();
 
             currentTurn++;
+
+			_providorContext.ScreenProvider.WaitForEnter();
         }
         if (ExitRequested)
 			resultType = BattleResultType.Escape;
+
+		_providorContext.ScreenProvider.Clear(ScreenLayer.Label);
+        _providorContext.ScreenProvider.Clear(ScreenLayer.SubView);
 
         var result = CheckBattleResult(resultType);
 
@@ -112,7 +127,12 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 		{
             var reward = _battleServices.BattleRewardCalculator.CalculateReward(_battleSession.Enemies);
             _partyController.GetReward(reward);
+            _providorContext.ScreenProvider.RefreshUntil();
+            _providorContext.ScreenProvider.WaitForEnter();
+			_providorContext.ScreenProvider.Set(ScreenLayer.MainView, TextMasterData.GetPartyText(_partyController));
+
 		}
+		_providorContext.ScreenProvider.RefreshUntil();
 		return result;
 	}
 
@@ -130,28 +150,43 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 				break;
 			}
 			_battleServices.ActionExecutor.ExecuteAction(currentAction, this, conditionContext);
-		}
-	}
+
+            _providorContext.ScreenProvider.Set(ScreenLayer.MainView, TextMasterData.GetPartyText(_partyController));
+			_providorContext.ScreenProvider.RefreshUntil();
+        }
+    }
 
 	private BattleResult CheckBattleResult(BattleResultType resultType)
 	{
 		switch (resultType)
 		{
 			case BattleResultType.Victory:
-                _providorContext.LogProvider.Log("_戦闘に勝利した!_");
-				return new BattleResult(resultType, _exitDungeon);
+                //_providorContext.LogProvider.WriteLog("_戦闘に勝利した!_");
+				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "_戦闘に勝利した!_");
+				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
+				_providorContext.ScreenProvider.WaitForEnter();
+                return new BattleResult(resultType, _exitDungeon);
 
 			case BattleResultType.Defeat:
-                _providorContext.LogProvider.Log("_戦闘に敗北した..._");
-				return new BattleResult(resultType, true);
+                //_providorContext.LogProvider.WriteLog("_戦闘に敗北した..._");
+				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "_戦闘に敗北した..._");
+				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
+				_providorContext.ScreenProvider.WaitForEnter();
+                return new BattleResult(resultType, true);
 				
 			case BattleResultType.Escape:
-				_providorContext.LogProvider.Log("_戦闘から逃げ出した");
-				return new BattleResult(resultType, _exitDungeon);
+				//_providorContext.LogProvider.WriteLog("_戦闘から逃げ出した");
+				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "_戦闘から逃げ出した");
+				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
+				_providorContext.ScreenProvider.WaitForEnter();
+                return new BattleResult(resultType, _exitDungeon);
 				
 			default:
-				_providorContext.LogProvider.Log("想定外の結果");
-				return new BattleResult(resultType, true);
+				//_providorContext.LogProvider.WriteLog("想定外の結果");
+				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "想定外の結果");
+				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
+				_providorContext.ScreenProvider.WaitForEnter();
+                return new BattleResult(resultType, true);
 				
         }
     }

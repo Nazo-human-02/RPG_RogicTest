@@ -6,10 +6,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvider)
+public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvider, IScreenProvider screenProvider)
 {
     private readonly ILogProvider _logProvider = logProvider;
     private readonly IInputProvider _inputProvider = inputProvider;
+    private readonly IScreenProvider _screenProvider = screenProvider;
     private readonly TargetResolver _targetResolver = new TargetResolver();
 
     public SelectionResult<SelectItemData> SelectingItem
@@ -31,11 +32,11 @@ public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvi
                 if (currentSelect != null)
                     return new SelectionSuccess<SelectItemData>((SelectItemData)currentSelect);
                 else
-                    _logProvider.Log("アイテムを選択してください");
+                    _logProvider.WriteLog("アイテムを選択してください");
             }
             else if(!int.TryParse(input, out int inputNum) || (inputNum < 0 || selectItemDatas.Count < inputNum))
             {
-                _logProvider.Log("正しい選択肢を入力してください");
+                _logProvider.WriteLog("正しい選択肢を入力してください");
             }
             else if(inputNum == 0)
             {
@@ -45,11 +46,11 @@ public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvi
             {
                 var selectItem = selectItemDatas[inputNum - 1];
                 if (!selectItem.CanUse)
-                    _logProvider.Log("そのアイテムは使用できません");
+                    _logProvider.WriteLog("そのアイテムは使用できません");
                 else
                 {
                     currentSelect = selectItem;
-                    _logProvider.Log($"[選択中]-->" +
+                    _logProvider.WriteLog($"[選択中]-->" +
                         $"[{selectItem.ItemName}({GetCategoryText(selectItem.ItemCategory)})×{selectItem.Amount}]");
                 }
             }
@@ -95,7 +96,7 @@ public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvi
             text.Append(t);
             n++;
         }
-        _logProvider.Log(text.ToString());
+        _logProvider.WriteLog(text.ToString());
     }
 
     private string GetCategoryText(ItemCategory itemCategory)

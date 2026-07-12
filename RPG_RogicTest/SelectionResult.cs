@@ -10,3 +10,5 @@ public abstract record SelectionResult<T>;
 public record SelectionSuccess<T>(T Value) : SelectionResult<T>;
 
 public record SelectionCancel<T> : SelectionResult<T>;
+
+public record SelectionOpenMenu<T>(MenuContext MenuContext) : SelectionResult<T>;

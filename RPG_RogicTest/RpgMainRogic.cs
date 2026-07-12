@@ -5,25 +5,44 @@ public static class RpgMainRogic
 	static void Main()
 	{
         IRandomProvider random = new RandomProvider();
-        ILogProvider log = new ConsoleLogProvider();
         IInputProvider input = new ConsoleInputProvider();
+        ConsoleLogProvider logProvider = new ConsoleLogProvider(input); //log兼screen
+        //ILogProvider log = new LogProvider();
 
-        PartyController partyController = new PartyController(log);
+        PartyController partyController = new PartyController(logProvider, logProvider);
+        ProvidorContext providorContext = new(logProvider, random, input, logProvider);
+        InitializeGame(logProvider, partyController);
 
-        InitializeGame(log, partyController);
+        DungeonManager dungeonManager = new DungeonManager(logProvider, logProvider, random, input);
 
-        DungeonManager dungeonManager = new DungeonManager(log, random, input);
+        //仮置き
+        TargetResolver targetResolver = new();
+        TargetSelect targetSelect = new(logProvider, input, logProvider);
+        BattleCalculator battleCalculator = new(random);
+        BattleManagerGenerator battleManagerGenerator = new();
+        MenuSelector menuSelector = new(input, logProvider);
+        InventoryMenu inventoryMenu = new(targetResolver, targetSelect, battleCalculator);
+        SkillMenu skillMenu = new(targetResolver, targetSelect, battleCalculator);
+        EquipmentSelector equipmentSelector = new();
+        EquipmentMenu equipmentMenu = new(equipmentSelector);
+        MenuManager menuManager = new(menuSelector, providorContext, inventoryMenu, skillMenu, equipmentMenu);
+
+        GameManager gameManager = new(providorContext, battleManagerGenerator, menuManager, dungeonManager, partyController);
+        gameManager.Initialize();
+        //
+        
         while(true)
         {
-            dungeonManager.EnterDungeon(partyController);
-            bool isContinue = ContinueGame(input, log);
+            gameManager.EnterToDungeon();
+            //dungeonManager.EnterDungeon(partyController);
+            bool isContinue = ContinueGame(input, logProvider);
             if (!isContinue)
                 break;
             PrepareForNextBattle(partyController);
         }
 
 
-        log.Log("\nゲームを終了します。プレイありがとうございました！");
+        logProvider.WriteLog("\nゲームを終了します。プレイありがとうございました！");
 	}
 
     private static void LoadMasterDatas()
@@ -37,6 +56,7 @@ public static class RpgMainRogic
         EnemyMasterData.Load();
         EnemyTableMasterData.Load();
         EntityBaseStatMasterData.Load();
+        EquipmentMasterData.Load();
         ItemMasterData.Load();
         NotificationMasterData.Load();
         NpcMasterData.Load();
@@ -58,20 +78,22 @@ public static class RpgMainRogic
             main.SetSkill("skill_003");
             main.SetSkill("skill_004");
             partyController.Inventory.AddItem("item_test_000", 100);
+            var equipment_1 = EquipmentCreator.Create("equip_head_001");
+            partyController.Inventory.AddEquipment(equipment_1);
             partyController.AddMember(main);
         }
-		log.Log("ゲームの初期化完了");
+		log.WriteLog("ゲームの初期化完了");
     }
 
     private static bool ContinueGame(IInputProvider inputProvider, ILogProvider logProvider)
     {
         while (true)
         {
-            logProvider.Log("0:戦闘継続,1:ゲーム終了");
+            logProvider.WriteLog("0:戦闘継続,1:ゲーム終了");
             string? input = inputProvider.Input();
             if (string.IsNullOrEmpty(input) || !int.TryParse(input, out int num) || (num != 0 && num != 1))
             {
-                logProvider.Log("正しく入力してください");
+                logProvider.WriteLog("正しく入力してください");
             }
             else if (num == 0)
                 return true;
@@ -81,21 +103,21 @@ public static class RpgMainRogic
     }
 	private static void ShowPartyStatus(ILogProvider log, PartyController partyController)
 	{
-        log.Log("\n---現在のパーティー状況---");
+        log.WriteLog("\n---現在のパーティー状況---");
         foreach (var party in partyController.PartyMember)
         {
-            log.Log($"Lv{party.Stat.expSet.CurrentLevel}:{party.Name}, 最大HP:{party.Stat.MaxHp}");
-            log.Log($"状態個数:{party.Notifications.Notifications.Count}");
+            log.WriteLog($"Lv{party.Stat.expSet.CurrentLevel}:{party.Name}, 最大HP:{party.Stat.MaxHp}");
+            log.WriteLog($"状態個数:{party.Notifications.Notifications.Count}");
             foreach (var not in party.Notifications.Notifications)
             {
                 if (not.Owner == null)
                 {
                     continue;
                 }
-                log.Log($"[{not.Owner.Name}]:残り{not.RemainTime}ターン");
+                log.WriteLog($"[{not.Owner.Name}]:残り{not.RemainTime}ターン");
             }
         }
-        log.Log("-----------------------\n");
+        log.WriteLog("-----------------------\n");
     }
 
     private static void PrepareForNextBattle(PartyController partyController)

@@ -11,6 +11,14 @@ public static class SkillCreator
     }
 }
 
+public static class EquipmentCreator
+{
+    public static Equipment Create(GameId<IEquipmentId> equipmentId)
+    {
+        EquipmentData equipmentData = EquipmentMasterData.GetEquipment(equipmentId);
+        return new Equipment(equipmentData.EquipmentInfo, equipmentData.ModifierStat, equipmentData.IsCursed);
+    }
+}
 public static class NotifyCreator
 {
     public static Notification Creator(GameId<INotificationId> notifyId, Entity owner)

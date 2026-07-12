@@ -1,9 +1,8 @@
 ﻿using System;
 
-public abstract class Entity : IEquipable, ITalkable
+public abstract class Entity : ITalkable
 {
-    public Dictionary<BodyParts, Equipment> Equipments { get => equipments; set => equipments = value; }
-    private Dictionary<BodyParts, Equipment> equipments = new();
+    public EquipmentController EquipmentController { get; set; }
 
     public NotificationContainer Notifications { get; set; } = new();
 
@@ -19,20 +18,11 @@ public abstract class Entity : IEquipable, ITalkable
 
     protected Entity(string name, BattleStat battleStat, GameId<IBaseStatId> id)
     {
-        InitializeEquipment();
+        EquipmentController = new(this);
+        EquipmentController.Initialize();
         InitializeName(name);
         InitializeId(id);
         InitializeStat(battleStat);
-    }
-
-    protected void InitializeEquipment()
-    {
-        Equipment blankEquipment = new Equipment() { equipmentType = EquipmentType.Blank, bodyParts = BodyParts.Blank };
-        foreach (BodyParts part in Enum.GetValues(typeof(BodyParts)))
-        {
-            if (part == BodyParts.Blank) continue;
-            equipments[part] = blankEquipment;
-        }
     }
 
     protected void InitializeName(string name)
@@ -63,6 +53,13 @@ public abstract class Entity : IEquipable, ITalkable
         EntityBaseStatData baseStatData = EntityBaseStatMasterData.GetEntityBaseStat(EntityID);
         StatCalculator.UpdateStat(Stat, baseStatData);
     }
+    public void UpdateEquipmentStat()
+    {
+        var equipMod = EquipmentController.GetTotalModifier();
+        Stat.UpDateEquipStat(equipMod);
+        UpdateStat();
+    }
+
     public void SetLevelUpStat()
     {
         EntityBaseStatData baseStatData = EntityBaseStatMasterData.GetEntityBaseStat(EntityID);
@@ -107,11 +104,8 @@ public abstract class Entity : IEquipable, ITalkable
 
         clone.Stat = this.Stat.Clone();
 
-        clone.Equipments = new Dictionary<BodyParts, Equipment>();
-        foreach (var kvp in this.Equipments)
-        {
-            clone.Equipments[kvp.Key] = kvp.Value.Clone();
-        }
+        clone.EquipmentController = this.EquipmentController.Clone(clone);
+
         clone.ValidSkills = new HashSet<Skill>();
         foreach(Skill skill in this.ValidSkills) 
         {

@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 public class BattleManagerGenerator
 {
-    public BattleManager Create(ILogProvider log, IRandomProvider random, IInputProvider input, 
+    public BattleManager Create(ILogProvider log, IRandomProvider random, IInputProvider input, IScreenProvider screen,
         IReadOnlyList<EnemyCharacter> enemies, PartyController partyController, FieldType fieldType, int floorNum = 0)
     {
-        ProvidorContext providers = new (log, random, input);
-        GameSelectionService selections = GetSelections(log, input);
-        BattleServices battleServices = GetBattleServices(random, log, selections);
+        ProvidorContext providers = new (log, random, input, screen);
+        GameSelectionService selections = GetSelections(log, input, screen);
+        BattleServices battleServices = GetBattleServices(random, log, screen, selections);
         BattleSession session = new(partyController.PartyMember, enemies);
         BattleRuntimeContext battleRuntimecontext = new();
         FieldContext fieldContext = new(fieldType, floorNum);
@@ -19,22 +19,23 @@ public class BattleManagerGenerator
             (providers, battleServices, battleRuntimecontext, partyController,session, fieldContext);
     }
 
-    private GameSelectionService GetSelections(ILogProvider log, IInputProvider input)
+    private GameSelectionService GetSelections(ILogProvider log, IInputProvider input, IScreenProvider screenProvider)
     {
-        CommandSelect commandSelect = new(log, input);
-        TargetSelect targetSelect = new(log, input);
+        CommandSelect commandSelect = new(log, input, screenProvider);
+        TargetSelect targetSelect = new(log, input, screenProvider);
         TargetResolver targetResolver = new();
-        SkillSelection skillSelection = new(log, input);
-        UseItemSelecter useItemSelecter = new(log, input);
+        SkillSelection skillSelection = new(log, input, screenProvider);
+        UseItemSelecter useItemSelecter = new(log, input, screenProvider);
         return new GameSelectionService(commandSelect, targetSelect, targetResolver, skillSelection, useItemSelecter);
     }
 
-    private BattleServices GetBattleServices(IRandomProvider random, ILogProvider log, GameSelectionService selectionService)
+    private BattleServices GetBattleServices(IRandomProvider random, ILogProvider log, IScreenProvider screen,
+        GameSelectionService selectionService)
     {
         BattleCalculator battleCalculator = new(random);
         TurnScheduler turnScheduler = new(random);
         BattleRewardCalculator battleRewardCalculator = new(random);
-        ActionExecutor actionExecutor = new(battleCalculator, log);
+        ActionExecutor actionExecutor = new(battleCalculator, log, screen);
         BattleActionQueue battleActionQueue = new(selectionService);
         return new BattleServices(turnScheduler, battleRewardCalculator, battleActionQueue, actionExecutor);
     }
@@ -45,7 +46,8 @@ public record ProvidorContext
 (
     ILogProvider LogProvider,
     IRandomProvider RandomProvider,
-    IInputProvider InputProvider
+    IInputProvider InputProvider,
+    IScreenProvider ScreenProvider
 );
 
 public record BattleServices

@@ -5,12 +5,13 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvider)
+public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvider, IScreenProvider screenProvider)
 {
     private readonly ILogProvider _log = logProvider;
     private readonly IInputProvider _input = inputProvider;
+    private readonly IScreenProvider _screen = screenProvider;
 
-    public RouteData SelectingRoute(IReadOnlyList<RouteData> routeDatas)
+    public SelectionResult<RouteData> SelectingRoute(IReadOnlyList<RouteData> routeDatas)
     {
         while(true)
         {
@@ -18,19 +19,25 @@ public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvide
             string? select = _input.Input();
             if(string.IsNullOrEmpty(select) || !int.TryParse(select, out int num))
             {
-                _log.Log("進行方向に対応する数字を入力してください");
+                _screen.Set(ScreenLayer.Content, "進行方向に対応する数字を入力してください");
+                //_log.WriteLog();
             }
             else
             {
+                if(num == 0)
+                {
+                    return new SelectionOpenMenu<RouteData>(MenuContext.Dungeon);
+                }
                 RouteData? routeData = GetInputNum(routeDatas, num);
                 if(routeData != null)
                 {
                     OnMoveText(routeData.DirectionType);
-                    return routeData;
+                    return new SelectionSuccess<RouteData>(routeData);
                 }
                 else
                 {
-                    _log.Log("範囲外の数値です");
+                    _screen.Set(ScreenLayer.Content, "範囲外の数値です");
+                    //_log.WriteLog();
                 }
             }
         }
@@ -44,20 +51,25 @@ public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvide
             RouteData? direction = GetDirectionRoute(routeDatas, directionType);
             if(direction == null)
             {
-                selectionText.Append("-----");
+                selectionText.Append("[-----]");
             }
             else
             {
                 (string text, int num) = GetDirectionText(direction.DirectionType);
-                selectionText.Append($"{text}に進む<{num}>");
+                selectionText.Append($"[{text}に進む<{num}>]");
             }
         }
-        _log.Log(selectionText.ToString());
+        selectionText.AppendLine("[メニュー<0>]");
+        _screen.Set(ScreenLayer.InputArea, selectionText.ToString());
+        _screen.RefreshUntil();
+        //_log.WriteLog(selectionText.ToString());
     }
     private void OnMoveText(DirectionType directionType)
     {
         string direction = GetDirectionText(directionType).Item1;
-        _log.Log($"{direction}に進んだ");
+        _screen.Append(ScreenLayer.Content, $"{direction}に進んだ");
+        _screen.RefreshUntil();
+        //_log.WriteLog();
     }
 
 

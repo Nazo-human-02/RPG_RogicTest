@@ -1,11 +1,12 @@
 ﻿using System;
 
 //パーティー管理,操作
-public class PartyController(ILogProvider logProvider)
+public class PartyController(ILogProvider logProvider, IScreenProvider screenProvider)
 {
     public IReadOnlySet<CharacterBase> PartyMember => _partyMember;
     private readonly HashSet<CharacterBase> _partyMember = new();
     private readonly ILogProvider log = logProvider;
+    private readonly IScreenProvider screen = screenProvider;
     const int MaxPartyMember = 4; //パーティーメンバー,増えるかも
     public int OwnedGold { get; private set; } = 0;
     public Inventory Inventory => _inventory; 
@@ -42,8 +43,10 @@ public class PartyController(ILogProvider logProvider)
     public void GetReward(BattleResultConfig dropRewardData)
     {
         AddGold(dropRewardData.TotalGold);
-        log.Log($"_____戦利品を獲得した_____");
-        log.Log($"～{dropRewardData.TotalGold}G手に入れた！(所持金{OwnedGold})～");
+        screen.Append(ScreenLayer.Content, $"_____戦利品を獲得した_____");
+        screen.Append(ScreenLayer.Content, $"～{dropRewardData.TotalGold}G手に入れた！(所持金{OwnedGold})～");
+        //log.WriteLog($"_____戦利品を獲得した_____");
+        //log.WriteLog($"～{dropRewardData.TotalGold}G手に入れた！(所持金{OwnedGold})～");
         foreach(Entity entity in PartyMember)
         {
             if(entity.Stat.IsDead)
@@ -56,7 +59,8 @@ public class PartyController(ILogProvider logProvider)
             {
                 text += $"レベルアップ！[Lv{expResult.BeforeLevel}→Lv{expResult.AfterLevel}]";
             }
-            log.Log(text);
+            screen.Append(ScreenLayer.Content, text);
+            //log.WriteLog(text);
         }
 
         if (dropRewardData.DropItems == null) return;
@@ -65,7 +69,8 @@ public class PartyController(ILogProvider logProvider)
             if (item.ItemId == null) continue;
             _inventory.AddItem((GameId<IItemId>)item.ItemId, item.Amount);
             var itemData = ItemMasterData.GetItemData((GameId<IItemId>)item.ItemId);
-            log.Log($"{itemData.ItemName}を{item.Amount}個手に入れた");
+            //log.WriteLog($"{itemData.ItemName}を{item.Amount}個手に入れた");
+            screen.Append(ScreenLayer.Content, $"{itemData.ItemName}を{item.Amount}個手に入れた");
         }
     }
 
@@ -87,7 +92,9 @@ public class PartyController(ILogProvider logProvider)
 public class Inventory
 {
     public IReadOnlyDictionary<GameId<IItemId>, int> ItemInventory => _itemInventory;
+    public IReadOnlyList<EquipmentSet> EquipmentInventory => _equipmentInventory;
     private Dictionary<GameId<IItemId>, int> _itemInventory = new();
+    private List<EquipmentSet> _equipmentInventory = new();
 
     public void AddItem(GameId<IItemId> itemID, int amount)
     {
@@ -98,7 +105,10 @@ public class Inventory
         if (_itemInventory[itemID] > maxStack)
             _itemInventory[itemID] = maxStack;
     }
-
+    public void AddEquipment(Equipment equipment)
+    {
+        _equipmentInventory.Add(new EquipmentSet(equipment, false, null));
+    }
     public bool RemoveItem(GameId<IItemId> itemID, int amount)
     {
         if (!_itemInventory.ContainsKey(itemID))
@@ -110,11 +120,49 @@ public class Inventory
             _itemInventory.Remove(itemID);
         return true;
     }
-
+    public bool RemoveEquipment(EquipmentSet equipmentSet)
+    {
+        if(equipmentSet.Equiped)
+            return false;
+        _equipmentInventory.Remove(equipmentSet);
+        return true;
+    }
     public int GetItemAmount(GameId<IItemId> itemID)
     {
         return ItemInventory.TryGetValue(itemID, out var amount) ? amount : 0;
     }
+}
+public class EquipmentSet
+(
+    Equipment equipment,
+    bool equiped,
+    Entity? equipper
+)
+{
+    public readonly Equipment Equipment = equipment;
+    public bool Equiped { get; private set; } = equiped;
+    public Entity? Equipper { get; private set; } = equipper;
+
+    public EquipmentSet Clone(Entity owner)
+    {
+        EquipmentSet clone = 
+            new(Equipment.Clone(), Equiped, owner);
+        return clone;
+    }
+    public void Equip(Entity equipper)
+    {
+        Equiped = true;
+        Equipper = equipper;
+    }
+    public void UnEquip()
+    {
+        Equiped = false;
+        Equipper = null;
+    }
+
+        
+    public static EquipmentSet Blank(BodyParts bodyParts)
+        => new EquipmentSet(Equipment.Blank(bodyParts), false, null);
 }
 public class EnemySpawnSelector(IRandomProvider randomProvider)
 {

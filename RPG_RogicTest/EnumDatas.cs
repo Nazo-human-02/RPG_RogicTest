@@ -16,6 +16,7 @@ public enum CostType { CurrentMP, CurrentHP, MaxMP, MaxHP};
 public enum ReferType { Current, Max};
 public enum TargetPoint { HP, MP};
 public enum StatType { Hp, Mp, Atk, Def, Agi, Cri, Criper};
+public enum ModifierType { BaseFlat, FlatOffset, RatePercent, FinalRate};
 public enum FieldValidType {DungeonBattleOnly, DungeonExploreOnly, OutsideBattleOnly, OutsideExploreOnly,
     AnyBattle, AnywhereDungeon, AnywhereOutside, AnyExplore };
 public enum FieldType { Dungeon, OutSide};
@@ -54,5 +55,7 @@ public enum Phase
     None //該当なし
 }
 public enum NotifyType { None, Counter, Heal, Poison } //必要か分からない
-
+public enum  ScreenLayer { Header, MainView, SubView, Label, Content, InputArea, None};
+public enum MenuType { Status, Inventory, Equipment, Skill, Save};
+public enum MenuContext { Dungeon, Battle, Shop};
 #endregion

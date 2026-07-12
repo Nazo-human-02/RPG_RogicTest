@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Net.Http.Headers;
 
-public class TargetSelect(ILogProvider log, IInputProvider input)
+public class TargetSelect(ILogProvider log, IInputProvider input, IScreenProvider screenProvider)
 {
     private readonly ILogProvider _log = log;
     private readonly IInputProvider _input = input;
+    private readonly IScreenProvider _screen = screenProvider;
 
     public SelectionResult<List<Entity>> SelectingTargets(Entity selecter, BattleSession battleSession, TargetType targetType, int targetAmount)
     {
@@ -27,9 +28,12 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
     private SelectionResult<List<Entity>> GetSelectedTargetList(List<Entity> targetCandidates, int targetAmount)
     {
         List<Entity> currentSelected = new List<Entity>();
+        _screen.Clear(ScreenLayer.Content);
         while (true)
         {
-            _log.Log(SelectionText(targetCandidates, currentSelected));
+            //_log.WriteLog(SelectionText(targetCandidates, currentSelected));
+            _screen.Set(ScreenLayer.InputArea, SelectionText(targetCandidates, currentSelected));
+            _screen.RefreshUntil();
             string? selectNum = _input.Input();
 
             if(string.IsNullOrEmpty(selectNum))
@@ -37,7 +41,8 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
                 var (isDone, content) = TryFinishSelection(currentSelected, targetAmount);
                 if (content != null)
                 {
-                    _log.Log(content);
+                    _screen.Set(ScreenLayer.Content, content);
+                    //_log.WriteLog(content);
                 }
                 if (isDone)
                 {
@@ -59,7 +64,8 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
                     }
                     else
                     {
-                        _log.Log("選択可能数を超えます");
+                        _screen.Set(ScreenLayer.Content, "選択可能数を超えます");
+                        //_log.WriteLog("選択可能数を超えます");
                     }
                 }
             }
@@ -69,7 +75,8 @@ public class TargetSelect(ILogProvider log, IInputProvider input)
             }
             else
             {
-                _log.Log("入力が正しくありません");
+                _screen.Set(ScreenLayer.Content, "入力が正しくありません");
+                //_log.WriteLog("入力が正しくありません");
             }            
         }
     }

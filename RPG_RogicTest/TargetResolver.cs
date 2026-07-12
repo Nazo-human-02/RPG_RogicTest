@@ -39,7 +39,7 @@ public class TargetResolver
             _ => new List<Entity>() { user },
         };
     }
-    private bool CheckCondition(ConditionData conditionData, ConditionContext conditionContext)
+    public static bool CheckCondition(ConditionData conditionData, ConditionContext conditionContext)
     {
         if (conditionData.Conditions.Count == 0)
             return true;
@@ -60,4 +60,8 @@ public record TargetResolveResult
     List<Entity> TargetCandidates,
     TargetSelectType TargetSelectType,
     int TargetAmount
-);
+)
+{
+    public static TargetResolveResult NullResult()
+        => new(new(), TargetSelectType.Self, 0);
+}
