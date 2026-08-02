@@ -23,6 +23,7 @@ public record RequestOpenSelector<T>
         else if (result is SelectionOpenMenu<T> openMenu)
         {
             OnOpenMenu?.Invoke(openMenu);
+            //return;
         }
         else
             OnCanceled?.Invoke(result);
@@ -31,7 +32,7 @@ public record RequestOpenSelector<T>
     public void HandleInput(int num)
     {
         Selector.HandleInput(num, out var result);
-        if (result is null)
+        if (result is null || result is SelectionContinue<T>)
             return;
         InvokeResult(result);
     }

@@ -6,98 +6,84 @@ using System.Text;
 using System.Threading.Tasks;
 
 public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvider, IScreenProvider screenProvider)
+    : ISelector<RouteData>
 {
     private readonly ILogProvider _log = logProvider;
-    private readonly IInputProvider _input = inputProvider;
+    private readonly IInputProvider _input = inputProvider; //外部入力にできたら消す
     private readonly IScreenProvider _screen = screenProvider;
 
-    public SelectionResult<RouteData> SelectingRoute(IReadOnlyList<RouteData> routeDatas)
+    private readonly Dictionary<DirectionType, int> _directions = new()
+    {[DirectionType.Left] = 1, [DirectionType.Center] = 2, [DirectionType.Right] = 3 };
+    private Dictionary<int, SelectionCommand<RouteData>> _selectionCommands = new();
+    public void Open(IReadOnlyList<RouteData> routeDatas)
     {
-        while(true)
+        SetCommandsDict(routeDatas);
+        Render();
+    }
+    public void HandleInput(int num, out SelectionResult<RouteData>? result)
+    {
+        if(!_selectionCommands.TryGetValue(num, out var command))
         {
-            SelectionText(routeDatas);
-            string? select = _input.Input();
-            if(string.IsNullOrEmpty(select) || !int.TryParse(select, out int num))
-            {
-                _screen.Set(ScreenLayer.Content, "進行方向に対応する数字を入力してください");
-                //_log.WriteLog();
-            }
-            else
-            {
-                if(num == 0)
-                {
-                    return new SelectionOpenMenu<RouteData>(MenuContext.Dungeon);
-                }
-                RouteData? routeData = GetInputNum(routeDatas, num);
-                if(routeData != null)
-                {
-                    OnMoveText(routeData.DirectionType);
-                    return new SelectionSuccess<RouteData>(routeData);
-                }
-                else
-                {
-                    _screen.Set(ScreenLayer.Content, "範囲外の数値です");
-                    //_log.WriteLog();
-                }
-            }
+            _screen.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screen.RefreshUntil();
+            result = null;
+            return;
+        }
+        result = command.Execute();
+        if (result is not SelectionContinue<RouteData>)
+            return;
+        else
+        {
+            _screen.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screen.RefreshUntil();
+            result = null;
         }
     }
-    private void SelectionText(IReadOnlyList<RouteData> routeDatas)
+    private void SetCommandsDict(IReadOnlyList<RouteData> routeDatas)
     {
-        DirectionType[] directionTypes = {DirectionType.Left, DirectionType.Center, DirectionType.Right };
-        StringBuilder selectionText = new();
-        foreach (DirectionType directionType in directionTypes)
+        _selectionCommands.Clear();
+        foreach(var direction in _directions)
         {
-            RouteData? direction = GetDirectionRoute(routeDatas, directionType);
-            if(direction == null)
-            {
-                selectionText.Append("[-----]");
-            }
-            else
-            {
-                (string text, int num) = GetDirectionText(direction.DirectionType);
-                selectionText.Append($"[{text}に進む<{num}>]");
-            }
+            var routeData = GetDirectionRoute(routeDatas, direction.Key);
+            string direct = GetDirectionText(direction.Key);
+            string text = (routeData == null) ? "[-----]" : $"[{direct}に進む<{direction.Value}>]";
+            Func<SelectionResult<RouteData>> action = (routeData == null) ? 
+                (() => OnContinue()) : (() => OnSelect(routeData));
+            _selectionCommands[direction.Value] = new(text, direction.Value, action);
         }
-        selectionText.AppendLine("[メニュー<0>]");
-        _screen.Set(ScreenLayer.InputArea, selectionText.ToString());
-        _screen.RefreshUntil();
-        //_log.WriteLog(selectionText.ToString());
+        _selectionCommands[0] = new("[メニュー<0>]", 0, () => new SelectionOpenMenu<RouteData>(MenuContext.Dungeon));
     }
-    private void OnMoveText(DirectionType directionType)
+    private void Render()
     {
-        string direction = GetDirectionText(directionType).Item1;
-        _screen.Append(ScreenLayer.Content, $"{direction}に進んだ");
-        _screen.RefreshUntil();
-        //_log.WriteLog();
+        StringBuilder sb = new();
+        foreach(var command in _selectionCommands.Values)
+        {
+            sb.Append(command.Text);
+        }
+        _screen.RefreshInput(sb.ToString());
     }
-
-
+    private SelectionSuccess<RouteData> OnSelect(RouteData routeData)
+    {
+        _screen.Set(ScreenLayer.Content, $"{GetDirectionText(routeData.DirectionType)}に進んだ");
+        _screen.RefreshUntil();
+        return new SelectionSuccess<RouteData>(routeData);
+    }
+    private SelectionContinue<RouteData> OnContinue()
+    {
+        return new SelectionContinue<RouteData>();
+    }
     private static RouteData? GetDirectionRoute(IReadOnlyList<RouteData> routeDatas, DirectionType directionType)
     {
         return routeDatas.FirstOrDefault(data => data.DirectionType == directionType);
     }
-
-    private static (string, int) GetDirectionText(DirectionType directionType)
+    private static string GetDirectionText(DirectionType directionType)
     {
         return (directionType) switch
         {
-            DirectionType.Left => ("左", 1),
-            DirectionType.Center => ("正面", 2),
-            DirectionType.Right => ("右", 3),
+            DirectionType.Left => "左",
+            DirectionType.Center => "正面",
+            DirectionType.Right => "右",
             _ => throw new InvalidOperationException("想定外の方向です")
         };
-    }
-    private RouteData? GetInputNum(IReadOnlyList<RouteData> routeDatas, int input)
-    {
-        DirectionType? type = (input) switch
-        {
-            1 => DirectionType.Left,
-            2 => DirectionType.Center,
-            3 => DirectionType.Right,
-            _ => null
-        };
-        RouteData? routeData = (type != null) ? GetDirectionRoute(routeDatas, (DirectionType)type) : null;
-        return routeData;
     }
 }
