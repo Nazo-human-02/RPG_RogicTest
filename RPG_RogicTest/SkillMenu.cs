@@ -148,12 +148,8 @@ public class SkillMenu(TargetSelector targetSelector, BattleCalculator battleCal
     {
         RequestOpenSelector<List<Entity>> request = 
             new(_targetSelector, () => _targetSelector.Open(result), (targets) => UseSkill(user, skill, targets.Value, random),
-            (cancel) => OnCanceled(cancel, skill));
+            _ => RenderSkillDetail(true, skill));
         OpenSelector?.Invoke(request);
-    }
-    private void OnCanceled(SelectionResult<List<Entity>> cancel, Skill skill)
-    {
-        RenderSkillDetail(true, skill); //使用できる前提なのでtrueを渡す
     }
     public void UpdateCondition(ConditionContext conditionContext)
     {

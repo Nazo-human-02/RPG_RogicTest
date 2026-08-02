@@ -11,11 +11,16 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
     private readonly TargetSelector _targetSelector = targetSelect;
     private readonly BattleCalculator _battleCalculator = battleCalculator;
 
-    private Dictionary<int, ItemCommand> _commands = new();
+    public MenuState CurrentMenuState => _currentMenuState;
+    private MenuState _currentMenuState = MenuState.MainMenu;
+    public bool IsClosed => _isClosed;
+    private bool _isClosed = true;
+    public Action<ISelectorRequest>? OpenSelector { get; set; } = null; 
     private Inventory _inventory = new();
 
     public ConditionContext ConditionContext => _conditionContext with { User = _currentMember};
     private ConditionContext _conditionContext = conditionContext;
+    private Action? _onUseItem = null;
     protected override void Initialize(PartyController partyController)
     {
         _inventory = partyController.Inventory;
@@ -25,39 +30,73 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
     public void OpenMenu(PartyController partyController)
     {
         ValidMenu(partyController);
+        _isClosed = false;
+    }
+    public void HandleInput(int num)
+    {
+        switch (CurrentMenuState)
+        {
+            case MenuState.MainMenu:
+                MainCommand(num); 
+                break;
+            case MenuState.Detail:
+                DetailCommand(num);
+                break;
+        }
+    }
+    private void MainCommand(int num)
+    {
+        if(num < 0 || num >_commands.Count)
+        {
+            SelectErrorText(-2);
+            return;
+        }
+        _commands[num].Execute.Invoke();
+    }
+    private void DetailCommand(int num)
+    {
+        if(num != 0 && num != 1)
+        {
+            SelectErrorText(-2);
+            return;
+        }
+        else if(num == 0)
+        {
+            RefreshMainMenu();
+        }
+        else if (num == 1)
+        {
+            if (_onUseItem is null)
+                _screen.Append(ScreenLayer.InputArea, "そのアイテムは使用できません");
+            else 
+                _onUseItem!.Invoke();
+        }
     }
     public override void ValidMenu(PartyController partyController)
     {
         Initialize(partyController);
-        SetCommandDict(partyController);
+        RefreshMainMenu();
+    }
+    private void RefreshMainMenu()
+    {
+        SetCommandDict();
+        _currentMenuState = MenuState.MainMenu;
         Render(_currentMember);
-
-        while(true)
+    }
+    private void TryChangePage(int num)
+    {
+        if(ChangePage(num))
         {
-            string? inputText = _input.Input();
-            if (string.IsNullOrEmpty(inputText) || !int.TryParse(inputText, out int inputNum))
-            {
-                _screen.Set(ScreenLayer.Content, "入力が正しくありません");
-            }
-            else if (inputNum == 0)
-            {
-                break;
-            }
-            else if(inputNum < 1 || inputNum > _commands.Count)
-            {
-                _screen.Set(ScreenLayer.Content, "選択肢にない番号です");
-            }
-            else
-            {
-                _commands[inputNum].Execute.Invoke();
-                SetCommandDict(partyController);
-                Render(_currentMember);
-            }
-            _screen.RefreshUntil();
+            RefreshMainMenu();
+        }
+        else
+        {
+            _screen.Append(ScreenLayer.InputArea, "ページの変更に失敗しました。");
         }
     }
     protected override void Render(Entity member)
     {
+
         StringBuilder sb = new();
         sb.AppendLine("=持ち物=");
         sb.AppendLine($"[使用者:{member.Name}]");
@@ -65,48 +104,19 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
         {
             sb.AppendLine(command.Value.Text);
         }
-        sb.AppendLine("<0>でもどる|番号を入力しアイテム詳細");
-        _screen.Set(ScreenLayer.InputArea, sb.ToString());
-        _screen.Clear(ScreenLayer.Content);
-        _screen.RefreshUntil();
+        _screen.RefreshInput(sb.ToString());
     }
 
     private void ValidItemDetail(GameId<IItemId> itemId)
     {
+        _currentMenuState = MenuState.Detail;
         ItemData itemData = ItemMasterData.GetItemData(itemId);
         UseLessType useLessType =
             UseValidator.TryUseItem(ConditionContext, itemData, out var result);
         bool canUse = UseValidator.CanUse(useLessType);
-
+        _onUseItem = (canUse) ? 
+            () => RequestTargetSelector(result, itemData, ConditionContext.RandomProvider): null;
         RenderItemDetail(canUse, itemData);
-        while (true)
-        {
-            string? t = _input.Input();
-            if (string.IsNullOrEmpty(t) || !int.TryParse(t, out int n) || (n != 0 && n != 1))
-            {
-                _screen.Set(ScreenLayer.Content, "入力が正しくありません");
-            }
-            else if (n == 0)
-            {
-                break;
-            }
-            else if (n == 1 && !canUse)
-            {
-                _screen.Set(ScreenLayer.Content, "そのアイテムは使えません");
-            }
-            else
-            {
-                var targets = _targetSelector.SelectingTargets(result);
-                if (targets is SelectionSuccess<List<Entity>> success)
-                {
-                    UseItem(_inventory, itemData, success.Value, ConditionContext.RandomProvider);
-                    break;
-                }
-
-                RenderItemDetail(canUse, itemData);
-            }
-            _screen.RefreshUntil();
-        }
     }
     private void RenderItemDetail(bool canUse, ItemData itemData)
     {
@@ -118,15 +128,13 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
         text += (canUse) ? "<1>使用する" : "\033[9m<1>使用する\033[0m";
         sb.AppendLine(text);
 
-        _screen.Set(ScreenLayer.InputArea, sb.ToString());
-        _screen.Clear(ScreenLayer.Content);
-        _screen.RefreshUntil();
+        _screen.RefreshInput(sb.ToString());
     }
-    private void SetCommandDict(PartyController partyController)
+    private void SetCommandDict()
     {
         _commands.Clear();
         int num = 1;
-        foreach(var item in partyController.Inventory.ItemInventory)
+        foreach(var item in _inventory.ItemInventory)
         {
             ItemData itemData = ItemMasterData.GetItemData(item.Key);
             string text = 
@@ -136,16 +144,28 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
             num++;
         }
         int i = 1;
-        foreach(var member in partyController.PartyMember)
+        foreach(var member in _displayMembers)
         {
             string text = $"<{num}>|使用者を[{member.Name}]に変更";
-            _commands[num] = new(text, 0, () => ChangePage(i));
+            _commands[num] = new(text, 0, () => TryChangePage(i));
             i++;
             num++;
         }
+        _commands[0] = new("<0>|もどる|番号を入力しアイテム詳細", 0, Close);
     }
-
-    private void UseItem(Inventory inventory, ItemData itemData, List<Entity> targets, IRandomProvider random)
+    public void Close()
+    {
+        _isClosed = true;
+    }
+    private void RequestTargetSelector
+        (TargetResolveResult result, ItemData itemData, IRandomProvider random)
+    {
+        RequestOpenSelector<List<Entity>> request = 
+            new(_targetSelector,() => _targetSelector.Open(result),
+            (targets) => UseItem(itemData, targets.Value, random), _ => ValidItemDetail(itemData.ItemId));
+        OpenSelector?.Invoke(request);
+    }
+    private void UseItem(ItemData itemData, List<Entity> targets, IRandomProvider random)
     {
         foreach(Entity entity in targets)
         {
@@ -155,7 +175,13 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
                 var result = effect.ApplyEffect(effectContent, ActionSource.FromItem(itemData.ItemId));
             }
         }
-        inventory.RemoveItem(itemData.ItemId, 1);
+        _inventory.RemoveItem(itemData.ItemId, 1);
+        if(_inventory.GetItemAmount(itemData.ItemId) > 0)
+            ValidItemDetail(itemData.ItemId);
+        else
+        {
+            RefreshMainMenu();
+        }
     }
 
     public void UpdateCondition(ConditionContext conditionContext)
@@ -163,10 +189,3 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
         _conditionContext = conditionContext;
     }
 }
-
-public record ItemCommand
-(
-    string Text,
-    int Amount,
-    Action Execute
-);
