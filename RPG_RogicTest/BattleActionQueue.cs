@@ -9,8 +9,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
     private readonly CommandSelect _commandSelect = gameSelection.CommandSelect;
     private readonly SkillSelection _skillSelection = gameSelection.SkillSelection;
     private readonly UseItemSelecter _itemSelector = gameSelection.UseItemSelecter;
-    private readonly TargetSelect _targetSelect = gameSelection.TargetSelect;
-    private readonly TargetResolver _targetResolver = gameSelection.TargetResolver;
+    private readonly TargetSelector _targetSelect = gameSelection.TargetSelect;
     public List<ActionUnit[]> CreateEnemyActions(ConditionContext conditionContext)
     {
         List<ActionUnit[]> actionUnits = new();
@@ -74,7 +73,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
         ConditionData condition =
             (conditionData != null) ? conditionData : ConditionData.Default;
         TargetData targetData = new TargetData(TargetType.Enemy, TargetSelectType.Self, 1);
-        TargetResolveResult resolveResult = _targetResolver.TargetResolve(condition, conditionContext, targetData);
+        TargetResolveResult resolveResult = TargetResolver.GetTargetResolve(condition, conditionContext, targetData);
         var result = _targetSelect.SelectingTargets(resolveResult);
         if (result is not SelectionSuccess<List<Entity>> targets || targets.Value.Count == 0)
         {
@@ -139,8 +138,9 @@ public class BattleActionQueue(GameSelectionService gameSelection)
 
     private SelectionResult<List<Entity>> SelectTargets(Entity entity, Skill skill, ConditionContext conditionContext)
     {
-        var resolveResult = _targetResolver.TargetResolve(skill.ConditionData, conditionContext, skill.TargetData);
-        return _targetSelect.SelectingTargets(entity, conditionContext.BattleSession!, skill.TargetData.TargetType, skill.TargetData.TargetAmount);
+        var resolveResult = 
+            TargetResolver.GetTargetResolve(skill.ConditionData, conditionContext with {User = entity }, skill.TargetData);
+        return _targetSelect.SelectingTargets(resolveResult);
     }
     private SelectionResult<List<Entity>> SelectTargets(TargetResolveResult targetResolveResult)
     {
@@ -151,8 +151,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
 public record GameSelectionService
 (
     CommandSelect CommandSelect,
-    TargetSelect TargetSelect,
-    TargetResolver TargetResolver,
+    TargetSelector TargetSelect,
     SkillSelection SkillSelection,
     UseItemSelecter UseItemSelecter
 );

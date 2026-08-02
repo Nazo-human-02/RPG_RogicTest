@@ -21,7 +21,7 @@ public class EquipmentController(Entity owner)
         }
     }
 
-    public bool TryEquip(EquipmentSet equipmentSet, out EquipmentSet? previousEquipment)
+    public bool TryEquip(EquipmentSet equipmentSet, out EquipmentSet previousEquipment)
     {
         if (equipmentSet.Equipment == null) throw new ArgumentNullException(nameof(equipmentSet.Equipment));
 

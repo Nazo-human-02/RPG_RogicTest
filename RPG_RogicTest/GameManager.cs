@@ -5,12 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 
 public class GameManager(ProvidorContext providorContext, BattleManagerGenerator battleManagerGenerator,
-    MenuManager menuManager, DungeonManager dungeonManager, PartyController partyController)
+    MenuManager menuManager, DungeonManager dungeonManager, PartyController partyController, ScreenManager screenManager)
 {
     private readonly ProvidorContext _providorContext = providorContext;
     private readonly BattleManagerGenerator _battleManagerGenerator = battleManagerGenerator; //ダンジョン外での戦闘用
 
     private readonly MenuManager _menuManager = menuManager;
+    private readonly ScreenManager _screenManager = screenManager;
     private readonly DungeonManager _dungeonManager = dungeonManager;
 
     private readonly PartyController _partyController = partyController;
@@ -26,6 +27,6 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
 
     public void OpenMenuWindow(ConditionContext conditionContext)
     {
-        _menuManager.OpenMenu(_partyController, conditionContext);
+        _screenManager.OpenMenu(_partyController, conditionContext);
     }
 }

@@ -215,8 +215,9 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
 
         else
         {
-            bool canUse = ItemMasterData.TryUseItem(actionUnit.UseItemInfo.ItemId,
-                conditionContext with { User = actionUnit.Executor, Target = actionUnit.Target }, out var itemData);
+            ItemData itemData = ItemMasterData.GetItemData(actionUnit.UseItemInfo.ItemId);
+            bool canUse = ConditionChecker.Check(itemData.ConditionData, 
+                conditionContext with {User = actionUnit.Executor, Target = actionUnit.Target });
             if (string.IsNullOrEmpty(actionUnit.OnExecuteContent) && loopNum == 1)
             {
                 //_logProvider.WriteLog($"{actionUnit.Executor.Name}は{itemData.ItemName}を使用した");

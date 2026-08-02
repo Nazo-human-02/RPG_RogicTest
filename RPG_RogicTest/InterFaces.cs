@@ -40,6 +40,23 @@ public interface IUseable
     void Use(Entity user, params Entity[] target);
 }
 
+public interface IMenu
+{
+    MenuState CurrentMenuState { get; }
+    Action<ISelectorRequest>? OpenSelector { get; set; }
+    void OpenMenu(PartyController partyController);
+    void HandleInput(int num);
+    void Close();
+    bool IsClosed { get; }
+
+}
+
+public interface ISelector<T>
+{
+    void HandleInput(int num, out SelectionResult<T>? result);
+}
+public interface ISelectionResult
+{ }
 #endregion
 
 #region ゲームタグ用のインターフェース

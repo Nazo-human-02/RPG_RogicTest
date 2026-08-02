@@ -1,68 +1,58 @@
-﻿using System;
+﻿using Microsoft.VisualBasic.FileIO;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-public class MenuSelector(IInputProvider inputProvider, IScreenProvider screenProvider)
+public class MenuSelector(IInputProvider inputProvider, IScreenProvider screenProvider) : ISelector<MenuType>
 {
     private readonly IInputProvider _input = inputProvider;
     private readonly IScreenProvider _screen = screenProvider;
     private Dictionary<int, MenuType?> _menuOptions = new();
-
-    public SelectionResult<MenuType> MenuOptionSelect()
+    private Dictionary<int, SelectionCommand<MenuType>> _selectionCommands = new();
+    public void Open()
     {
-        InitializeSelecting();
-
-        return GetSelectResult();
+        InitializeCommands();
+        Render();
     }
+    public void HandleInput(int num, out SelectionResult<MenuType>? result)
+    {
+        if(!_selectionCommands.TryGetValue(num, out var option))
+        {
+            _screen.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screen.RefreshUntil();
+            result = null;
+        }
+        else
+        {
+            result = option.Execute.Invoke();
+        }
+    }
+    private void InitializeCommands()
+    {
+        _selectionCommands.Clear();
+        _selectionCommands[0] =
+            new SelectionCommand<MenuType>($"[0:もどる]", 0, () => new SelectionCancel<MenuType>());
 
-    private void InitializeSelecting()
+        int num = 1;
+        foreach(MenuType option in Enum.GetValues<MenuType>())
+        {
+            _selectionCommands[num] = 
+                new SelectionCommand<MenuType>($"[{num}:{TextMasterData.GetMenuTypeText((MenuType)option)}]", 
+                num, () => new SelectionSuccess<MenuType>(option));
+            num++;
+        }
+    }
+    private void Render()
     {
         StringBuilder sb = new();
-        _menuOptions.Clear();
-
         sb.AppendLine("表示するメニューを選択、エンターで決定");
-        int n = 0;
-        _menuOptions[0] = null;
-        sb.Append("[0:もどる]");
-        foreach(MenuType menuType in Enum.GetValues<MenuType>())
+        foreach(var command in _selectionCommands.Values)
         {
-            n++;
-            sb.Append($"[{n}:{TextMasterData.GetMenuTypeText(menuType)}]");
-            _menuOptions[n] = menuType;
+            sb.AppendLine(command.Text);
         }
-
-        _screen.Set(ScreenLayer.InputArea, sb.ToString());
-        _screen.Clear(ScreenLayer.Content);
-        _screen.RefreshUntil();
+        _screen.RefreshInput(sb.ToString());
     }
-    
-    private SelectionResult<MenuType> GetSelectResult()
-    {
-        while(true)
-        {
-            string? input = _input.Input();
-
-            if(String.IsNullOrEmpty(input) || !int.TryParse(input, out int num))
-            {
-                _screen.Set(ScreenLayer.Content, "対応する番号を入力してください");
-            }
-            else if(!_menuOptions.TryGetValue(num, out MenuType? option))
-            {
-                _screen.Set(ScreenLayer.Content, "その番号は対応していません");
-            }
-            else
-            {
-                return (option != null) ? new SelectionSuccess<MenuType>((MenuType)option) : new SelectionCancel<MenuType>();
-            }
-            _screen.RefreshUntil();
-        }
-    }
-}
-
-public interface IMenuDetailSelector
-{
-
 }
 

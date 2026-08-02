@@ -63,7 +63,7 @@ public abstract class ActiveSkill
             _ => CostData.Cost,
         };
     }
-    public bool CanUseSkill(Entity entity)
+    public bool CanPaySkillCost(Entity entity)
     {
         int requiredCost = GetRequiredCost(entity);
         return CostData.CostType switch
@@ -88,13 +88,15 @@ public abstract class ActiveSkill
     }
     public bool TryPayCost(Entity entity)
     {
-        if (CanUseSkill(entity))
+        if (CanPaySkillCost(entity))
         {
             PayCost(entity);
             return true;
         }
         return false;
     }
+
+    
 }
 
 public class NullBrankSkill

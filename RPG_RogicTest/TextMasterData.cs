@@ -316,4 +316,10 @@ public static class TextMasterData
 
         return sb.ToString().TrimEnd();
     }
+
+    public static string GetWindowLine()
+        => new string('=', Console.WindowWidth);
+
+    public static string GetWindowSmallLine()
+        => new string ('-', Console.WindowWidth);
 }

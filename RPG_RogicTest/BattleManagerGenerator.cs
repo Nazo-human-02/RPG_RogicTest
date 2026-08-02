@@ -22,11 +22,10 @@ public class BattleManagerGenerator
     private GameSelectionService GetSelections(ILogProvider log, IInputProvider input, IScreenProvider screenProvider)
     {
         CommandSelect commandSelect = new(log, input, screenProvider);
-        TargetSelect targetSelect = new(log, input, screenProvider);
-        TargetResolver targetResolver = new();
+        TargetSelector targetSelect = new(log, input, screenProvider);
         SkillSelection skillSelection = new(log, input, screenProvider);
         UseItemSelecter useItemSelecter = new(log, input, screenProvider);
-        return new GameSelectionService(commandSelect, targetSelect, targetResolver, skillSelection, useItemSelecter);
+        return new GameSelectionService(commandSelect, targetSelect, skillSelection, useItemSelecter);
     }
 
     private BattleServices GetBattleServices(IRandomProvider random, ILogProvider log, IScreenProvider screen,

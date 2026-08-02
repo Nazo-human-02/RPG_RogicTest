@@ -29,6 +29,8 @@ public enum TargetType { All, Ally, Enemy, Self, None};
 public enum LifeState {Alive, Dead, Any };
 public enum TargetSelectType { Random, Self};
 public enum BattleResultType { Victory, Defeat, Escape, ContinueBattle};
+public enum UseLessType { NotEnoughCost, NoneTargets, Invalid, ConditionDisMatch, CoolTime, Error, UseAble};
+public enum MenuState { MainMenu, Detail, Selection};
 public enum Phase
 {
     StartBattle, //戦闘開始

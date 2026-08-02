@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-public class TargetResolver
+public static class TargetResolver
 {
-    public TargetResolveResult TargetResolve
+    static public TargetResolveResult GetTargetResolve
         (ConditionData conditionData, ConditionContext conditionContext, TargetData targetData)
     {
         IReadOnlyList<EnemyCharacter> enemies = conditionContext.BattleSession?.Enemies ?? new List<EnemyCharacter>();
@@ -18,13 +18,15 @@ public class TargetResolver
         foreach(var entity in entities)
         {
             ConditionContext context = conditionContext with { Target = entity };
-            bool canUse = CheckCondition(conditionData, context);
-            if (canUse) candidates.Add(entity);
+            if( ConditionChecker.Check(conditionData, context))
+            {
+                candidates.Add(entity);
+            }
         }
         
         return new TargetResolveResult(candidates, targetData.TargetSelectType, targetData.TargetAmount);
     }
-    private List<Entity> GetBaseTargetCandidates(PartyController partyController, 
+    static private List<Entity> GetBaseTargetCandidates(PartyController partyController, 
         IReadOnlyList<EnemyCharacter> enemies, TargetType targetType, Entity user)
     {
         bool isEnemy = user is EnemyCharacter;
@@ -38,20 +40,6 @@ public class TargetResolver
             TargetType.All => partyController.PartyMember.Cast<Entity>().Concat(enemies).ToList(),
             _ => new List<Entity>() { user },
         };
-    }
-    public static bool CheckCondition(ConditionData conditionData, ConditionContext conditionContext)
-    {
-        if (conditionData.Conditions.Count == 0)
-            return true;
-        foreach(var condition in conditionData.Conditions)
-        {
-            bool canUse = condition.CanExecute(conditionContext);
-            if(canUse && conditionData.LogicalOperator == LogicalOperator.Or)
-                return true;
-            if (!canUse && conditionData.LogicalOperator == LogicalOperator.And)
-                return false;
-        }
-        return (conditionData.LogicalOperator == LogicalOperator.And);
     }
 }
 

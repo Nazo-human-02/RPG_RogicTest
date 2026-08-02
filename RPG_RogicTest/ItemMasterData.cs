@@ -41,26 +41,6 @@ public static class ItemMasterData
         throw new InvalidOperationException($"アイテムID:{itemID}が見つかりませんでした");
     }
 
-    public static bool TryUseItem(GameId<IItemId> itemId, ConditionContext conditionContext, out ItemData itemData)
-    {
-        var data = GetItemData(itemId);
-        foreach(var condition in data.ConditionData.Conditions)
-        {
-            bool can = condition.CanExecute(conditionContext);
-            if(data.ConditionData.LogicalOperator == LogicalOperator.And && !can)
-            {
-                itemData = data;
-                return false;
-            }
-            else if (data.ConditionData.LogicalOperator == LogicalOperator.Or && can)
-            {
-                itemData = data;
-                return true;
-            }
-        }
-        itemData = data;
-        return data.ConditionData.LogicalOperator == LogicalOperator.And;
-    }
 }
 
 

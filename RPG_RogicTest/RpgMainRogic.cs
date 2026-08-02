@@ -15,17 +15,20 @@ public static class RpgMainRogic
 
         DungeonManager dungeonManager = new DungeonManager(logProvider, logProvider, random, input);
 
+
         //仮置き
-        TargetResolver targetResolver = new();
-        TargetSelect targetSelect = new(logProvider, input, logProvider);
+        FieldContext fieldContext = new(FieldType.OutSide, 0);
+        ConditionContext conditionContext = new(false, 0, null, null, partyController, null, fieldContext, random);
+        TargetSelector targetSelect = new(logProvider, input, logProvider);
         BattleCalculator battleCalculator = new(random);
         BattleManagerGenerator battleManagerGenerator = new();
         MenuSelector menuSelector = new(input, logProvider);
-        InventoryMenu inventoryMenu = new(targetResolver, targetSelect, battleCalculator);
-        SkillMenu skillMenu = new(targetResolver, targetSelect, battleCalculator);
+        InventoryMenu inventoryMenu = new(targetSelect, battleCalculator, conditionContext, logProvider, input);
+        StatusMenu statusMenu = new(input, logProvider);
+        SkillMenu skillMenu = new(targetSelect, battleCalculator, input, logProvider, conditionContext);
         EquipmentSelector equipmentSelector = new();
-        EquipmentMenu equipmentMenu = new(equipmentSelector);
-        MenuManager menuManager = new(menuSelector, providorContext, inventoryMenu, skillMenu, equipmentMenu);
+        EquipmentMenu equipmentMenu = new(equipmentSelector, input, logProvider);
+        MenuManager menuManager = new(menuSelector, providorContext, statusMenu, inventoryMenu, skillMenu, equipmentMenu);
 
         GameManager gameManager = new(providorContext, battleManagerGenerator, menuManager, dungeonManager, partyController);
         gameManager.Initialize();

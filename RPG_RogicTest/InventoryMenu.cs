@@ -4,104 +4,144 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-public class InventoryMenu(TargetResolver targetResolver, TargetSelect targetSelect, BattleCalculator battleCalculator)
+public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleCalculator, ConditionContext conditionContext,
+    IScreenProvider screenProvider, IInputProvider inputProvider) :
+    MemberMenuBase(inputProvider, screenProvider), IUpdateCondition, IMenu
 {
-    private readonly TargetResolver _targetResolver = targetResolver;
-    private readonly TargetSelect _targetSelector = targetSelect;
+    private readonly TargetSelector _targetSelector = targetSelect;
     private readonly BattleCalculator _battleCalculator = battleCalculator;
 
-    private List<GameId<IItemId>> _itemDisplay = new();
-    private void Initialize(Inventory inventory, IScreenProvider screen)
+    private Dictionary<int, ItemCommand> _commands = new();
+    private Inventory _inventory = new();
+
+    public ConditionContext ConditionContext => _conditionContext with { User = _currentMember};
+    private ConditionContext _conditionContext = conditionContext;
+    protected override void Initialize(PartyController partyController)
     {
-        _itemDisplay.Clear();
-
-        StringBuilder sb = new();
-        sb.AppendLine("=持ち物=");
-        int num = 1;
-        foreach (var item in inventory.ItemInventory)
-        {
-            ItemData itemData = ItemMasterData.GetItemData(item.Key);
-            sb.AppendLine
-                ($"<{num}>|[({TextMasterData.GetCategoryText(itemData.ItemCategory)}){itemData.ItemName}×{item.Value}]");
-            _itemDisplay.Add(item.Key);
-            num++;
-        }
-        sb.AppendLine("<0>でもどる|番号を入力しアイテム詳細");
-
-        screen.Set(ScreenLayer.InputArea, sb.ToString());
-        screen.Clear(ScreenLayer.Content);
-        screen.RefreshUntil();
+        _inventory = partyController.Inventory;
+        
+        base.Initialize(partyController);
     }
-    public void ValidInventoryView(Inventory inventory, ConditionContext conditionContext,
-        IScreenProvider screen, IInputProvider input, IRandomProvider random)
+    public void OpenMenu(PartyController partyController)
     {
-        Initialize(inventory, screen);
+        ValidMenu(partyController);
+    }
+    public override void ValidMenu(PartyController partyController)
+    {
+        Initialize(partyController);
+        SetCommandDict(partyController);
+        Render(_currentMember);
 
         while(true)
         {
-            string? inputText = input.Input();
-            if(string.IsNullOrEmpty(inputText) || !int.TryParse(inputText, out int inputNum))
+            string? inputText = _input.Input();
+            if (string.IsNullOrEmpty(inputText) || !int.TryParse(inputText, out int inputNum))
             {
-                screen.Set(ScreenLayer.Content, "入力が正しくありません");
-            }
-            else if (inputNum < 0 || inputNum > _itemDisplay.Count)
-            {
-                screen.Set(ScreenLayer.Content, "選択肢にない番号です");
+                _screen.Set(ScreenLayer.Content, "入力が正しくありません");
             }
             else if (inputNum == 0)
             {
                 break;
             }
+            else if(inputNum < 1 || inputNum > _commands.Count)
+            {
+                _screen.Set(ScreenLayer.Content, "選択肢にない番号です");
+            }
             else
             {
-                var itemId = _itemDisplay[inputNum - 1];
-                bool canUse = ItemMasterData.TryUseItem(itemId, conditionContext, out ItemData itemData);
-                TargetResolveResult result = TargetResolveResult.NullResult();
-                if(canUse)
-                {
-                    result = _targetResolver.TargetResolve(itemData.ConditionData, conditionContext, itemData.TargetData);
-                    canUse = (result.TargetCandidates.Count > 0);
-                }
-                string text = "<0>|もどる";
-                text += (canUse) ? "<1>使用する" : "\033[9m<1>使用する\033[0m";
-
-                screen.Set(ScreenLayer.InputArea, $"{itemData.ItemName}|アイテムの説明");
-                screen.Append(ScreenLayer.InputArea, text);
-                screen.RefreshUntil();
-
-                while(true)
-                {
-                    string? t = input.Input();
-                    if(string.IsNullOrEmpty(t) || !int.TryParse(t, out int n) || (n != 0 && n != 1))
-                    {
-                        screen.Set(ScreenLayer.Content, "入力が正しくありません");
-                    }
-                    else if(n == 0)
-                    {
-                        Initialize(inventory, screen);
-                        break;
-                    }
-                    else if (n == 1 && !canUse)
-                    {
-                        screen.Set(ScreenLayer.Content, "そのアイテムは使えません");
-                    }
-                    else
-                    {
-                        var targets = _targetSelector.SelectingTargets(result);
-                        if (targets is not SelectionSuccess<List<Entity>> success)
-                        {
-                            Initialize(inventory, screen);
-                        }
-                        else
-                        {
-                            UseItem(inventory, itemData, success.Value, random);
-                            Initialize(inventory, screen);
-                        }
-                    }
-                    screen.RefreshUntil();
-                }
+                _commands[inputNum].Execute.Invoke();
+                SetCommandDict(partyController);
+                Render(_currentMember);
             }
-            screen.RefreshUntil();
+            _screen.RefreshUntil();
+        }
+    }
+    protected override void Render(Entity member)
+    {
+        StringBuilder sb = new();
+        sb.AppendLine("=持ち物=");
+        sb.AppendLine($"[使用者:{member.Name}]");
+        foreach(var command in _commands)
+        {
+            sb.AppendLine(command.Value.Text);
+        }
+        sb.AppendLine("<0>でもどる|番号を入力しアイテム詳細");
+        _screen.Set(ScreenLayer.InputArea, sb.ToString());
+        _screen.Clear(ScreenLayer.Content);
+        _screen.RefreshUntil();
+    }
+
+    private void ValidItemDetail(GameId<IItemId> itemId)
+    {
+        ItemData itemData = ItemMasterData.GetItemData(itemId);
+        UseLessType useLessType =
+            UseValidator.TryUseItem(ConditionContext, itemData, out var result);
+        bool canUse = UseValidator.CanUse(useLessType);
+
+        RenderItemDetail(canUse, itemData);
+        while (true)
+        {
+            string? t = _input.Input();
+            if (string.IsNullOrEmpty(t) || !int.TryParse(t, out int n) || (n != 0 && n != 1))
+            {
+                _screen.Set(ScreenLayer.Content, "入力が正しくありません");
+            }
+            else if (n == 0)
+            {
+                break;
+            }
+            else if (n == 1 && !canUse)
+            {
+                _screen.Set(ScreenLayer.Content, "そのアイテムは使えません");
+            }
+            else
+            {
+                var targets = _targetSelector.SelectingTargets(result);
+                if (targets is SelectionSuccess<List<Entity>> success)
+                {
+                    UseItem(_inventory, itemData, success.Value, ConditionContext.RandomProvider);
+                    break;
+                }
+
+                RenderItemDetail(canUse, itemData);
+            }
+            _screen.RefreshUntil();
+        }
+    }
+    private void RenderItemDetail(bool canUse, ItemData itemData)
+    {
+        StringBuilder sb = new();
+
+        sb.AppendLine($"{itemData.ItemName}|アイテムの説明");
+
+        string text = "<0>|もどる";
+        text += (canUse) ? "<1>使用する" : "\033[9m<1>使用する\033[0m";
+        sb.AppendLine(text);
+
+        _screen.Set(ScreenLayer.InputArea, sb.ToString());
+        _screen.Clear(ScreenLayer.Content);
+        _screen.RefreshUntil();
+    }
+    private void SetCommandDict(PartyController partyController)
+    {
+        _commands.Clear();
+        int num = 1;
+        foreach(var item in partyController.Inventory.ItemInventory)
+        {
+            ItemData itemData = ItemMasterData.GetItemData(item.Key);
+            string text = 
+                ($"<{num}>|[({TextMasterData.GetCategoryText(itemData.ItemCategory)}){itemData.ItemName}×{item.Value}]");
+
+            _commands[num] = new(text, item.Value, () => ValidItemDetail(item.Key));
+            num++;
+        }
+        int i = 1;
+        foreach(var member in partyController.PartyMember)
+        {
+            string text = $"<{num}>|使用者を[{member.Name}]に変更";
+            _commands[num] = new(text, 0, () => ChangePage(i));
+            i++;
+            num++;
         }
     }
 
@@ -109,7 +149,7 @@ public class InventoryMenu(TargetResolver targetResolver, TargetSelect targetSel
     {
         foreach(Entity entity in targets)
         {
-            EffectContent effectContent = new(entity, entity, null, _battleCalculator, random);
+            EffectContent effectContent = new(_currentMember, entity, null, _battleCalculator, random);
             foreach(var effect in itemData.ItemEffectData.ItemEffects)
             {
                 var result = effect.ApplyEffect(effectContent, ActionSource.FromItem(itemData.ItemId));
@@ -117,4 +157,16 @@ public class InventoryMenu(TargetResolver targetResolver, TargetSelect targetSel
         }
         inventory.RemoveItem(itemData.ItemId, 1);
     }
+
+    public void UpdateCondition(ConditionContext conditionContext)
+    {
+        _conditionContext = conditionContext;
+    }
 }
+
+public record ItemCommand
+(
+    string Text,
+    int Amount,
+    Action Execute
+);

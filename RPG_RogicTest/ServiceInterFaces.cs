@@ -140,7 +140,18 @@ public class ConsoleLogProvider(IInputProvider inputProvider) : ILogProvider, IS
             InputArea.Clear();
         }
     }
-    
+    public void RefreshContent(string content)
+    {
+        Set(ScreenLayer.Content, content);
+        Clear(ScreenLayer.InputArea);
+        RefreshUntil();
+    }
+    public void RefreshInput(string content)
+    {
+        Set(ScreenLayer.InputArea, content);
+        Clear(ScreenLayer.Content);
+        RefreshUntil();
+    }
     public void RefreshUntil(ScreenLayer range = ScreenLayer.None)
     {
         ClearLog();
@@ -222,7 +233,8 @@ public interface IScreenProvider
     void RefreshUntil(ScreenLayer RefleshRange = ScreenLayer.None);
 
     void Set(ScreenLayer screenLayer, string content);
-
+    void RefreshContent(string content);
+    void RefreshInput(string content);
     void Append(ScreenLayer screenLayer, string content);
     void Clear(ScreenLayer screenLayer);
     void ClearAll();

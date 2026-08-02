@@ -7,96 +7,87 @@ using System.Threading.Tasks;
 using System.Xml.Serialization;
 
 public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvider, IScreenProvider screenProvider)
+    : ISelector<SelectItemData>
 {
     private readonly ILogProvider _logProvider = logProvider;
     private readonly IInputProvider _inputProvider = inputProvider;
     private readonly IScreenProvider _screenProvider = screenProvider;
-    private readonly TargetResolver _targetResolver = new TargetResolver();
 
+    private Dictionary<int, SelectionCommand<SelectItemData>> _selectionCommands = new();
+    private void InitializeCommands(IReadOnlyDictionary<GameId<IItemId>, int> itemInventory, ConditionContext conditionContext)
+    {
+        _selectionCommands.Clear();
+        int n = 1;
+        foreach (var item in itemInventory)
+        {
+            var itemData = ItemMasterData.GetItemData(item.Key);
+            UseLessType useLessCheck = UseValidator.TryUseItem(conditionContext, itemData, out TargetResolveResult result);
+            bool canUse = UseValidator.CanUse(useLessCheck);
+            SelectItemData data =
+                new SelectItemData(item.Key, itemData.ItemName, itemData.ItemCategory, item.Value, result, canUse);
+
+            string category = GetCategoryText(itemData.ItemCategory);
+            string useAbleText = (canUse) ? "使用可能" : "使用不可";
+            string t = $"\n|[{itemData.ItemName}({category}):×{item.Value}]<{useAbleText}>|==>[{n}]";
+            _selectionCommands[n] = new(t, n, () => new SelectionSuccess<SelectItemData>(data));
+            n++;
+        }
+        _selectionCommands[0] = new("|もどる|==>[0]", 0, () => new SelectionCancel<SelectItemData>());
+    }
+    public void Open(Dictionary<GameId<IItemId>, int> itemInventory, ConditionContext conditionContext)
+    {
+        InitializeCommands(itemInventory, conditionContext);
+        Render();
+    }
+    public void HandleInput(int num, out SelectionResult<SelectItemData>? result)
+    {
+        result = null;
+        if (num < 0 || num > _selectionCommands.Count)
+        {
+            _screenProvider.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screenProvider.RefreshUntil();
+            return;
+        }
+        result = _selectionCommands[num].Execute.Invoke();
+        if(result is SelectionSuccess<SelectItemData> success && !success.Value.CanUse)
+        {
+            _screenProvider.Set(ScreenLayer.Content, "そのアイテムは使用できません");
+            _screenProvider.RefreshUntil();
+            result = null;
+        }
+    }
     public SelectionResult<SelectItemData> SelectingItem
         (IReadOnlyDictionary<GameId<IItemId>, int> itemInventory, ConditionContext conditionContext)
     {
-        var useableItems = GetUseableItems(itemInventory, conditionContext);
-        SelectingText(useableItems) ;
-        return Selecting(useableItems);
-    }
-
-    private SelectionResult<SelectItemData> Selecting(IReadOnlyList<SelectItemData> selectItemDatas)
-    {
-        SelectItemData? currentSelect = null;
-        while(true)
+        InitializeCommands(itemInventory, conditionContext);
+        Render() ;
+        while(true) //仮置きのやつ、戦闘でのwhileを状態遷移に変更出来たら改良、消す予定
         {
             string? input = _inputProvider.Input();
-            if(string.IsNullOrEmpty(input))
+            if(string.IsNullOrEmpty(input) || !int.TryParse(input, out int inputNum))
             {
-                if (currentSelect != null)
-                    return new SelectionSuccess<SelectItemData>((SelectItemData)currentSelect);
-                else
-                    _logProvider.WriteLog("アイテムを選択してください");
-            }
-            else if(!int.TryParse(input, out int inputNum) || (inputNum < 0 || selectItemDatas.Count < inputNum))
-            {
-                _logProvider.WriteLog("正しい選択肢を入力してください");
-            }
-            else if(inputNum == 0)
-            {
-                return new SelectionCancel<SelectItemData>();
+                _screenProvider.Set(ScreenLayer.Content, "入力が正しくありません");
+                _screenProvider.RefreshUntil();
             }
             else
             {
-                var selectItem = selectItemDatas[inputNum - 1];
-                if (!selectItem.CanUse)
-                    _logProvider.WriteLog("そのアイテムは使用できません");
-                else
+                HandleInput(inputNum, out var result);
+                if(result is not null)
                 {
-                    currentSelect = selectItem;
-                    _logProvider.WriteLog($"[選択中]-->" +
-                        $"[{selectItem.ItemName}({GetCategoryText(selectItem.ItemCategory)})×{selectItem.Amount}]");
+                    return result;
                 }
             }
         }
     }
 
-    private TargetResolveResult ConditionCheck
-        (TargetData targetData, ConditionData conditionData, ConditionContext conditionContext)
-    {
-        var result = _targetResolver.TargetResolve(conditionData, conditionContext, targetData);
-        return result;
-    }
-
-    private List<SelectItemData> GetUseableItems
-        (IReadOnlyDictionary<GameId<IItemId>, int> itemInventory, ConditionContext conditionContext)
-    {
-        List<SelectItemData> items = new List<SelectItemData>();
-        foreach (var item in itemInventory)
-        {
-            var itemData = ItemMasterData.GetItemData(item.Key);
-            bool canUse = itemData.ItemCategory == ItemCategory.Consumable || itemData.ItemCategory == ItemCategory.Tool;
-            TargetResolveResult targetResolve = (canUse) ?
-                ConditionCheck(itemData.TargetData, itemData.ConditionData, conditionContext)
-                : new(new(), TargetSelectType.Self, 0);
-            canUse = (targetResolve.TargetCandidates.Count > 0); 
-            SelectItemData data =
-                new SelectItemData(item.Key, itemData.ItemName, itemData.ItemCategory, item.Value, targetResolve, canUse);
-            items.Add(data);
-        }
-        return items;
-    }
-
-    private void SelectingText(IReadOnlyList<SelectItemData> selectItemDatas)
+    private void Render()
     {
         StringBuilder text = new StringBuilder();
-        int n = 1;
-        text.Append("|もどる|==>[0]");
-        foreach(var item in selectItemDatas)
+        foreach(var command in _selectionCommands.Values)
         {
-            string category = GetCategoryText(item.ItemCategory);
-            string canUse = (item.CanUse) ? "使用可能" : "使用不可";
-            string t = $"\n|[{item.ItemName}({category}):×{item.Amount}]<{canUse}>|==>[{n}]";
-            text.Append(t);
-            n++;
+            text.Append(command.Text);
         }
-        _logProvider.WriteLog(text.ToString());
+        _screenProvider.RefreshInput(text.ToString());
     }
 
     private string GetCategoryText(ItemCategory itemCategory)

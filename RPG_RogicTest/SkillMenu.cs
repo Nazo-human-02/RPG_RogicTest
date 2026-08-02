@@ -4,107 +4,137 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-public class SkillMenu(TargetResolver targetResolver, TargetSelect targetSelector, BattleCalculator battleCalculator)
+public class SkillMenu(TargetSelector targetSelector, BattleCalculator battleCalculator,
+    IInputProvider inputProvider, IScreenProvider screenProvider, 
+    ConditionContext conditionContext)
+    : MemberMenuBase(inputProvider, screenProvider) , IUpdateCondition, IMenu
 {
-    private readonly TargetResolver _targetResolver = targetResolver;
-    private readonly TargetSelect _targetSelector = targetSelector;
+    private readonly TargetSelector _targetSelector = targetSelector;
     private readonly BattleCalculator _battleCalculator = battleCalculator;
+    public MenuState CurrentMenuState => _currentMenuState;
+    private MenuState _currentMenuState = MenuState.MainMenu;
+    public bool IsClosed => _isClosed;
+    private bool _isClosed = true;
+    public Action<ISelectorRequest>? OpenSelector { get; set; } = null;
+    public ConditionContext ConditionContext => _conditionContext with {User = _currentMember };
+    private ConditionContext _conditionContext = conditionContext;
 
-    private List<Entity> _skillMembersDisplay = new();
-
-    private (List<Skill>, Entity) Initialize(PartyController partyController, IScreenProvider screen, int pageNum = 1)
+    private Action? _onUseSkill = null;
+    public void HandleInput(int num)
     {
-        StringBuilder sb = new();
-        sb.Append("=スキル一覧=");
-
-        _skillMembersDisplay = partyController.PartyMember.Cast<Entity>().ToList();
-        if(pageNum > _skillMembersDisplay.Count)
+        switch (_currentMenuState)
         {
-            return (_skillMembersDisplay[0].ValidSkills.ToList(), _skillMembersDisplay[0]);
-        }
-        var member = _skillMembersDisplay[pageNum - 1];
-
-        sb.AppendLine($"[{member.Name}]");
-        int num = 1;
-        foreach(var skill in member.ValidSkills)
-        {
-            sb.AppendLine($"-<{num}>- [{skill.SkillInfo.SkillName}]");
-            num++;
-        }
-        sb.AppendLine("<0>でもどる|番号を入力しアイテム詳細");
-
-        screen.Set(ScreenLayer.InputArea, sb.ToString());
-        screen.Clear(ScreenLayer.Content);
-        screen.RefreshUntil();
-
-        return (member.ValidSkills.ToList(), member);
-    }
-    private void ChangedisplayPage() { } //スキルを表示するメンバーを変更する処理
-    public void ValidSkillMenu(PartyController partyController, ConditionContext conditionContext,
-        IScreenProvider screen, IInputProvider input, IRandomProvider random)
-    {
-        var currentDisplay = Initialize(partyController, screen);
-        int currentPage = 1;
-        while(true)
-        {
-            string? inputText = input.Input();
-
-            if(string.IsNullOrEmpty(inputText) || !int.TryParse(inputText, out int inputNum) 
-                || (inputNum < 0 || inputNum > currentDisplay.Item1.Count))
-            {
-                screen.Set(ScreenLayer.Content, "入力が正しくありません");
-            }
-            else if (inputNum == 0)
-            {
+            case MenuState.MainMenu:
+                MainCommands(num);
                 break;
-            }
-            else
-            {
-                var skill = currentDisplay.Item1[inputNum -1];
-                var result = _targetResolver.TargetResolve(skill.ConditionData, conditionContext, skill.TargetData);
-                string text = "<0>|もどる";
-                bool canPay = (skill is ActiveSkill activeSkill) ? activeSkill.TryPayCost(currentDisplay.Item2) : true;
-                text += (result.TargetCandidates.Count > 0 && skill.CurrentCoolTime == 0)
-                    ? "<1>使用する" : "\033[9m<1>使用する\033[0m";
-
-                screen.Set(ScreenLayer.Content, $"{skill.SkillInfo.SkillName}|スキルの説明");
-                screen.Set(ScreenLayer.InputArea, text);
-                screen.RefreshUntil();
-
-                while(true)
-                {
-                    string? inputT = input.Input();
-
-                    if (string.IsNullOrEmpty(inputT) || !int.TryParse(inputT, out int inputN)
-                        || (inputN != 0 && inputN != 1))
-                    {
-                        screen.Set(ScreenLayer.Content, "入力が正しくありません");
-                    }
-                    else if (inputN == 0)
-                    {
-                        currentDisplay = Initialize(partyController, screen, currentPage);
-                        break;
-                    }
-                    else
-                    {
-                        var targets = _targetSelector.SelectingTargets(result);
-                        if (targets is not SelectionSuccess<List<Entity>> success)
-                        {
-                            currentDisplay = Initialize(partyController, screen, currentPage);
-                        }
-                        else
-                        {
-                            UseSkill(currentDisplay.Item2, skill, success.Value, random);
-                            currentDisplay = Initialize(partyController, screen, currentPage);
-                        }
-                    }
-                }
-            }
-
-            screen.RefreshUntil();
+            case MenuState.Detail:
+                DetailCommands(num);
+                break;
         }
     }
+    private void MainCommands(int num)
+    {
+        if (num < 0 || num > _commands.Count)
+        {
+            SelectErrorText(-2);
+            return;
+        }
+        _commands[num].Execute.Invoke();
+    }
+    private void DetailCommands(int num)
+    {
+        if (num != 0 && num != 1)
+        {
+            SelectErrorText(-2);
+            return;
+        }
+        else if (num == 1 && _onUseSkill == null)
+        {
+            _screen.Append(ScreenLayer.InputArea, "そのスキルは使用できません");
+            _screen.RefreshUntil();
+        }
+        else if (num == 0)
+        {
+            Render(_currentMember);
+            _currentMenuState = MenuState.MainMenu;
+        }
+        else if (num == 1 && _onUseSkill != null)
+        {
+            _onUseSkill.Invoke();
+        }
+    }
+    public void OpenMenu(PartyController partyController)
+    {
+        _isClosed = false;
+        ValidMenu(partyController);
+    }
+    public void Close()
+    {
+        _isClosed = true;
+    }
+    public override void ValidMenu(PartyController partyController)
+    {
+        Initialize(partyController);
+        _currentMenuState = MenuState.MainMenu;
+        Render(_currentMember);
+    }
+    private void SetCommandDict(Entity showMember)
+    {
+        _commands.Clear();
+        int n = 1;
+        foreach(var skill in showMember.ValidSkills)
+        {
+            string text  = $"-<{n}>-[{skill.SkillInfo.SkillName}]";
+            _commands[n] = new (text, n, () => ValidSkillDetail(skill));
+            n++;
+        }
+        int i = 1;
+        foreach(var member in _displayMembers)
+        {
+            string showing = (i == _currentPage) ? "(表示中)" : "";
+            string text = $"-<{n}>-[{member.Name?? "nameless"}{showing}]";
+            _commands[n] = new (text, n, () => ChangedisplayPage(i));
+            i++;
+            n++;
+        }
+        _commands[0] = new ("-<0>-[もどる]|番号を入力して詳細,ページ切り替え", 0, () => Close());
+    }
+    protected override void Render(Entity member)
+    {
+        SetCommandDict(member);
+        StringBuilder sb = new();
+        sb.AppendLine("==スキルメニュー==");
+        foreach (var command in _commands)
+        {
+            sb.AppendLine(command.Value.Text);
+        }
+        _screen.RefreshInput(sb.ToString());
+    }
+    private void ChangedisplayPage(int num)
+    {
+        if (ChangePage(num))
+        {
+            Render(_currentMember);
+        }
+    } //スキルを表示するメンバーを変更する処理
+    private void RenderSkillDetail(bool canUse, Skill skill)
+    {
+        string text = "<0>|もどる";
+        text += (canUse) ? "<1>使用する" : "使用不可";
 
+        _screen.Set(ScreenLayer.Content, $"{skill.SkillInfo.SkillName}|スキルの説明");
+        _screen.Set(ScreenLayer.InputArea, text);
+        _screen.RefreshUntil();
+    }
+    private void ValidSkillDetail(Skill skill)
+    {
+        UseLessType useLessType = UseValidator.TryUseSkill(ConditionContext, skill, out var result);
+        bool canUse = UseValidator.CanUse(useLessType);
+        RenderSkillDetail(canUse, skill);
+        _currentMenuState = MenuState.Detail;
+        _onUseSkill = (canUse) ? 
+          () =>RequestTargetSelector(_currentMember, skill, ConditionContext.RandomProvider, result) : null;
+    }
     private void UseSkill(Entity skillUser, Skill skill, List<Entity> targets, IRandomProvider random)
     {
         foreach(var target in targets)
@@ -113,5 +143,20 @@ public class SkillMenu(TargetResolver targetResolver, TargetSelect targetSelecto
             ActionUnit actionUnit = new(ActionType.Skill, ActionSource.FromSkill(skill), skillUser, target, skill:skill);
             skill.ExecuteSkill(actionUnit, target, effectContent);
         }
+    }
+    private void RequestTargetSelector(Entity user, Skill skill, IRandomProvider random, TargetResolveResult result)
+    {
+        RequestOpenSelector<List<Entity>> request = 
+            new(_targetSelector, () => _targetSelector.Open(result), (targets) => UseSkill(user, skill, targets.Value, random),
+            (cancel) => OnCanceled(cancel, skill));
+        OpenSelector?.Invoke(request);
+    }
+    private void OnCanceled(SelectionResult<List<Entity>> cancel, Skill skill)
+    {
+        RenderSkillDetail(true, skill); //使用できる前提なのでtrueを渡す
+    }
+    public void UpdateCondition(ConditionContext conditionContext)
+    {
+        _conditionContext = conditionContext;
     }
 }

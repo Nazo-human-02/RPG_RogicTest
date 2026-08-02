@@ -1,22 +1,98 @@
 ﻿using System;
-using System.Net.Http.Headers;
+using System.Text;
 
-public class TargetSelect(ILogProvider log, IInputProvider input, IScreenProvider screenProvider)
+
+public class TargetSelector(ILogProvider log, IInputProvider input, IScreenProvider screenProvider) : ISelector<List<Entity>>
 {
     private readonly ILogProvider _log = log;
     private readonly IInputProvider _input = input;
     private readonly IScreenProvider _screen = screenProvider;
 
-    public SelectionResult<List<Entity>> SelectingTargets(Entity selecter, BattleSession battleSession, TargetType targetType, int targetAmount)
+    private Dictionary<int, SelectionCommand<List<Entity>>> _selectionCommands = new();
+    private List<Entity> _currentSelected = new();
+    public void Open(TargetResolveResult resolveResult)
     {
-        List<Entity> _alltargets = GetTargetsList(selecter, battleSession, targetType);
-        if(_alltargets.Count <= targetAmount)
+        _currentSelected.Clear();
+        SetCommands(resolveResult);
+        Render();
+    }
+    private void SetCommands(TargetResolveResult resolveResult)
+    {
+        _selectionCommands.Clear();
+        int num = 1;
+        bool isShortage = resolveResult.TargetCandidates.Count <= resolveResult.TargetAmount;
+        _selectionCommands[0] = new("[もどる:<0>]", 0, OnClosed);
+        foreach(var target in resolveResult.TargetCandidates)
         {
-            return new SelectionSuccess<List<Entity>>(_alltargets);
+            bool isSelected = _currentSelected.Contains(target);
+            string t = (isSelected) ? "選択中" : "未選択";
+            t = (isShortage) ? "自動選択" : t;
+            string text = $"[{num}:{target.Name}(HP:{target.Stat.CurrentHp}/{target.Stat.TotalHP},{t})]";
+            _selectionCommands[num] = new(text, num, () => OnSelected(target, isShortage, resolveResult));
+            num++;
         }
-        return GetSelectedTargetList(_alltargets, targetAmount);
+        if(isShortage) _currentSelected = resolveResult.TargetCandidates;
+        int rest = resolveResult.TargetAmount - _currentSelected.Count;
+        _selectionCommands[num] = 
+            new($"[確定:<{num}>](選択可能数 残り:{rest})", num, () => OnDecision(resolveResult.TargetAmount));
     }
 
+    private SelectionResult<List<Entity>> OnClosed()
+    {
+        _currentSelected.Clear();
+        return new SelectionCancel<List<Entity>>();
+    }
+    private SelectionResult<List<Entity>> OnSelected(Entity entity, bool isShortage, TargetResolveResult resolveResult)
+    {
+        if (!isShortage)
+        {
+            if(!_currentSelected.Remove(entity))
+                _currentSelected.Add(entity);
+        }
+        SetCommands(resolveResult);
+        Render();
+        return new SelectionContinue<List<Entity>>();
+    }
+    private SelectionSuccess<List<Entity>> OnDecision(int targetAmount)
+    {
+        if (_currentSelected.Count == targetAmount)
+            return new SelectionSuccess<List<Entity>>(_currentSelected);
+        else if (_currentSelected.Count < targetAmount)
+            _screen.Set(ScreenLayer.Content, "選択可能数を満たしていません");
+        else if(_currentSelected.Count > targetAmount)
+            _screen.Set(ScreenLayer.Content, "選択可能数を超えています");
+        return new SelectionSuccess<List<Entity>>([]);
+    }
+
+    public void HandleInput(int num, out SelectionResult<List<Entity>>? result)
+    {
+        result = null;
+        if (num < 0 || num > _selectionCommands.Count)
+        {
+            _screen.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screen.RefreshUntil();
+            return;
+        }
+        result = _selectionCommands[num].Execute.Invoke();
+        if(result is SelectionContinue<List<Entity>>)
+        {
+            result = null;
+        }
+        else if(result is SelectionSuccess<List<Entity>> success && success.Value.Count == 0)
+        {
+            result = null;
+        }
+    }
+    private void Render()
+    {
+        StringBuilder sb = new();
+        foreach (var command in _selectionCommands)
+        {
+            sb.AppendLine(command.Value.Text.ToString());
+        }
+        _screen.Set(ScreenLayer.InputArea, sb.ToString());
+        _screen.RefreshUntil();
+    }
     public SelectionResult<List<Entity>> SelectingTargets(TargetResolveResult targetResolveResult)
     {
         if(targetResolveResult.TargetCandidates.Count <= targetResolveResult.TargetAmount)
@@ -113,17 +189,4 @@ public class TargetSelect(ILogProvider log, IInputProvider input, IScreenProvide
         text += "\nEnterキーで確定";
         return text;
     }  
-
-    private List<Entity> GetTargetsList(Entity selecter, BattleSession battleSession, TargetType targetType)
-    {
-        bool isEnemy = selecter is EnemyCharacter;
-        return targetType switch
-        { 
-            TargetType.Enemy => (isEnemy) ? battleSession.GetAliveParty().Cast<Entity>().ToList() : battleSession.GetAliveEnemy().Cast<Entity>().ToList(),
-            TargetType.Ally => (isEnemy) ? battleSession.GetAliveEnemy().Cast<Entity>().ToList() : battleSession.GetAliveParty().Cast<Entity>().ToList(),
-            TargetType.Self => new List<Entity>() { selecter },
-            TargetType.All => battleSession.GetAliveEnemy().Cast<Entity>().Concat(battleSession.GetAliveParty()).ToList(),
-            _ => new List<Entity>() { selecter },
-        };
-    }
 }
