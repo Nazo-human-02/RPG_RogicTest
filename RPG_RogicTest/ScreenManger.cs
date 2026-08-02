@@ -11,9 +11,9 @@ public class ScreenManager(MenuManager menuManager, SelectorManager selectorMana
     private bool _isOpenSelector => _selectorManager.IsSelecting;
     public void OpenMenu(PartyController partyController, ConditionContext conditionContext)
     {
-        _menuManager.OpenMenuSelector(partyController, conditionContext, OpenSelector);
+        _menuManager.OpenMenuSelector(partyController, conditionContext, RequestOpenSelector);
     }
-    public void OpenSelector(ISelectorRequest selectorRequest)
+    public void RequestOpenSelector(ISelectorRequest selectorRequest)
     {
         _selectorManager.OpenSelector(selectorRequest);
     }

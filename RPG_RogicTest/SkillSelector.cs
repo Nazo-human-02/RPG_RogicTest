@@ -1,74 +1,60 @@
 ﻿using System;
+using System.Text;
 
 public class SkillSelection(ILogProvider log, IInputProvider inputProvider, IScreenProvider screenProvider)
+    : ISelector<Skill>
 {
     private readonly ILogProvider _log = log;
     private readonly IInputProvider _input = inputProvider;
     private readonly IScreenProvider _screen = screenProvider;
-    public SelectionResult<Skill> SkillSelect(Entity entity)
-    {
-        IReadOnlyList<Skill> skills = entity.ValidSkills.ToList();
-        SkillSelectText(skills);
+    private Dictionary<int, SelectionCommand<Skill>> _selectionCommands = new();
 
-        return WaitForSkillSelection(skills);
+    public void Open(Entity entity)
+    {
+        SetCommandsDict(entity);
+        Render();
     }
-    private SelectionResult<Skill> WaitForSkillSelection(IReadOnlyList<Skill> skillList)
+    public void HandleInput(int num, out SelectionResult<Skill>? result)
     {
-        Skill? selected = null;
-        while (true)
+        result = null;
+        if(!_selectionCommands.TryGetValue(num, out var command))
         {
-            string? num = _input.Input();
-
-            if (string.IsNullOrEmpty(num))
-            {
-                if (selected != null)
-                {
-                    return new SelectionSuccess<Skill>(selected);
-                }
-                else
-                {
-                    _screen.Set(ScreenLayer.Content, "スキルを選択してください");
-                    //_log.WriteLog("スキルを選択してください");
-                }
-            }
-            else if (!int.TryParse(num, out int n) || n < 0 || n > skillList.Count)
-            {
-                _screen.Set(ScreenLayer.Content, "入力が正しくありません");
-                //_log.WriteLog("入力が正しくありません");
-            }
-            else if(n == 0)
-            {
-                return new SelectionCancel<Skill>();
-            }
-            else
-            {
-                Skill skill = skillList[n - 1];
-                if (skill.CurrentCoolTime > 0)
-                {
-                    _screen.Set(ScreenLayer.Content, $"クールタイム中:残り{skill.CurrentCoolTime}ターン");
-                    //_log.WriteLog($"クールタイム中:残り{skill.CurrentCoolTime}ターン");
-                    continue;
-                }
-                else
-                {
-                    selected = skill;
-                    _screen.Set(ScreenLayer.Content, $"現在選択中:{selected.SkillInfo.SkillName}(Enterキーで確定)");
-                }
-            }
+            _screen.Set(ScreenLayer.Content, "選択範囲外です");
             _screen.RefreshUntil();
+            return;
         }
+        result = command.Execute.Invoke();
     }
-    private void SkillSelectText(IReadOnlyList<Skill> skillList)
+    private void SetCommandsDict(Entity entity)
     {
-        string text = "[0:もどる]";
-        for (int i = 0; i < skillList.Count; i++)
+        _selectionCommands.Clear();
+        int num = 1;
+        foreach(var skill in entity.ValidSkills)
         {
-            text += $"[{i + 1}:{skillList[i].SkillInfo.SkillName}]";
+            bool useAble = (skill.CurrentCoolTime <= 0);
+            _selectionCommands[num] = new($"[{num}:{skill.SkillInfo.SkillName}]", num, () => OnSelect(skill, useAble));
+            num++;
         }
-        text += "\nEnterキーで確定";
-        _screen.Set(ScreenLayer.InputArea, text);
-        _screen.Clear(ScreenLayer.Content);
-        _screen.RefreshUntil();
-        //_log.WriteLog(text);
+        _selectionCommands[0] = new("[0:もどる]", 0, () => new SelectionCancel<Skill>());
+    }
+    private void Render()
+    {
+        StringBuilder sb = new();
+        foreach(var command in _selectionCommands.Values)
+        {
+            sb.Append(command.Text);
+        }
+        _screen.RefreshInput(sb.ToString());
+    }
+    private SelectionResult<Skill> OnSelect(Skill skill, bool canUse)
+    {
+        if (canUse)
+            return new SelectionSuccess<Skill>(skill);
+        else
+        {
+            _screen.Set(ScreenLayer.Content, $"クールタイム中:残り{skill.CurrentCoolTime}ターン");
+            _screen.RefreshUntil();
+            return new SelectionContinue<Skill>();
+        }
     }
 }

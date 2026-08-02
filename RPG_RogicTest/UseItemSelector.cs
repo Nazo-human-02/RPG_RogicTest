@@ -56,30 +56,6 @@ public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvi
             result = null;
         }
     }
-    public SelectionResult<SelectItemData> SelectingItem
-        (IReadOnlyDictionary<GameId<IItemId>, int> itemInventory, ConditionContext conditionContext)
-    {
-        InitializeCommands(itemInventory, conditionContext);
-        Render() ;
-        while(true) //仮置きのやつ、戦闘でのwhileを状態遷移に変更出来たら改良、消す予定
-        {
-            string? input = _inputProvider.Input();
-            if(string.IsNullOrEmpty(input) || !int.TryParse(input, out int inputNum))
-            {
-                _screenProvider.Set(ScreenLayer.Content, "入力が正しくありません");
-                _screenProvider.RefreshUntil();
-            }
-            else
-            {
-                HandleInput(inputNum, out var result);
-                if(result is not null)
-                {
-                    return result;
-                }
-            }
-        }
-    }
-
     private void Render()
     {
         StringBuilder text = new StringBuilder();
