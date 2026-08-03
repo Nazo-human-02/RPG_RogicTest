@@ -31,7 +31,7 @@ public static class RpgMainRogic
         MenuManager menuManager = new(menuSelector, providorContext, statusMenu, inventoryMenu, skillMenu, equipmentMenu);
 
         GameManager gameManager = new(providorContext, battleManagerGenerator, menuManager, dungeonManager, partyController);
-        gameManager.Initialize();
+        gameManager.InitializeDungeonManager();
         //
         
         while(true)

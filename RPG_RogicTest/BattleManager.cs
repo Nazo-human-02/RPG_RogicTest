@@ -47,7 +47,11 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	public bool ExitRequested => _exitDungeon || _exitBattle;
 	private bool _exitDungeon = false;
 	private bool _exitBattle = false;
-    public void Dispose()
+
+	private Action<ISelectorRequest>? _selectorOpenRequest;
+	private BattleState _currentState;
+	private int _currentTurn = 0;
+    private void Dispose()
 	{
 		foreach (Entity party in _battleSession.Party)
 		{ 
@@ -58,8 +62,6 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	}
     public BattleResult BattleStart()
 	{
-		_providorContext.LogProvider.WriteLog("戦闘開始");
-
 		_providorContext.ScreenProvider.Set(ScreenLayer.Content, "戦闘開始");
 		_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
 		_providorContext.ScreenProvider.WaitForEnter();
@@ -69,45 +71,42 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 		bool isOver = false;
 		BattleResultType resultType = BattleResultType.ContinueBattle;
 
-		BattleNotification.TriggerPhase(Phase.StartBattle, null, null); //戦闘開始
+        ExecuteNotify(Phase.StartBattle, null, null); //通知配布と実行
 
-		ExecuteActionUnit(_baseConditioncontext);
-		int currentTurn = 1;
-		var conditionContext = _baseConditioncontext with { CurrentTurn = currentTurn };
+        _currentTurn = 1;
+		var conditionContext = _baseConditioncontext with { CurrentTurn = _currentTurn };
         while (!isOver)
 		{
-			//_providorContext.LogProvider.WriteLog($"-----------{currentTurn}ターン目---------------");
-			_providorContext.ScreenProvider.Set(ScreenLayer.Label, $"-----------{currentTurn}ターン目---------------");
+			_providorContext.ScreenProvider.Set(ScreenLayer.Label, $"-----------{_currentTurn}ターン目---------------");
 			_providorContext.ScreenProvider.Set
 				(ScreenLayer.SubView, TextMasterData.GetEncounterEnemyText(_battleSession.GetAliveEnemy()));
 			_providorContext.ScreenProvider.Clear(ScreenLayer.Content);
             _providorContext.ScreenProvider.RefreshUntil();
 
-            conditionContext = _baseConditioncontext with { CurrentTurn = currentTurn };
+            conditionContext = _baseConditioncontext with { CurrentTurn = _currentTurn };
 			BattleNotification.UpDateEntities();
 			List<ActionUnit[]> enemyActions = _battleServices.BattleActionQueue.CreateEnemyActions(conditionContext);
 			List<ActionUnit[]> playerActions = _battleServices.BattleActionQueue.CreatePlayerActions(conditionContext);
 			var sortedActions = SortActionQueue(enemyActions.Concat(playerActions).ToList());
 			_runtimeContext.Enqueue(sortedActions);
 
-			BattleNotification.TriggerPhase(Phase.StartTurn, null, null); //ターン開始
+            ExecuteNotify(Phase.StartTurn, null, null); //通知配布と実行
 
-			ExecuteActionUnit(conditionContext);
 
-			if (ExitRequested) //強制終了フラグ確認
+            if (ExitRequested) //強制終了フラグ確認
 				break;
 
-			BattleNotification.TriggerPhase(Phase.EndTurn, null, null); //ターン終了
+            ExecuteNotify(Phase.EndTurn, null, null); //通知配布と実行
 
-			ExecuteActionUnit(conditionContext);
 
             (isOver, resultType) = _battleSession.IsBattleOver();
 			_battleServices.ActionExecutor.ClearLogCache();
-			foreach(Entity enemy in _battleSession.GetAliveEnemy()) enemy.Notifications.TickNotify();
-			foreach(Entity party in _battleSession.GetAliveParty()) party.Notifications.TickNotify();
-			foreach (Entity entity in _battleSession.GetAllEntity()) entity.ReduceSkillCoolTime();
 
-            currentTurn++;
+			//持続効果,スキルのターンを減少
+			Tick();
+			//
+
+            _currentTurn++;
 
 			_providorContext.ScreenProvider.WaitForEnter();
         }
@@ -119,11 +118,10 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 
         var result = CheckBattleResult(resultType);
 
-		BattleNotification.TriggerPhase(Phase.EndBattle, null, null); //戦闘終了
+		ExecuteNotify(Phase.EndBattle, null, null); //通知配布と実行
 
-		ExecuteActionUnit(conditionContext);
 		Dispose();
-		if (resultType == BattleResultType.Victory)
+		if (resultType == BattleResultType.Victory) //報酬処理
 		{
             var reward = _battleServices.BattleRewardCalculator.CalculateReward(_battleSession.Enemies);
             _partyController.GetReward(reward);
@@ -135,8 +133,19 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 		_providorContext.ScreenProvider.RefreshUntil();
 		return result;
 	}
-
-	public Queue<ActionUnit[]> SortActionQueue(List<ActionUnit[]> actionUnits)
+	private void Tick()
+	{
+        foreach (Entity enemy in _battleSession.GetAliveEnemy()) enemy.Notifications.TickNotify();
+        foreach (Entity party in _battleSession.GetAliveParty()) party.Notifications.TickNotify();
+        foreach (Entity entity in _battleSession.GetAllEntity()) entity.ReduceSkillCoolTime();
+    }
+	private void ExecuteNotify(Phase phase, ActionUnit? actionUnit = null, Entity? target = null)
+	{
+        BattleNotification.TriggerPhase(Phase.StartBattle, actionUnit, target); //戦闘開始
+        ExecuteActionUnit(_baseConditioncontext with 
+		{CurrentTurn = _currentTurn, User = actionUnit?.Executor, Target = target}); //通知とセット
+    }
+    public Queue<ActionUnit[]> SortActionQueue(List<ActionUnit[]> actionUnits)
 	{
 		return _battleServices.TurnScheduler.ActionOrder(actionUnits);
 	}

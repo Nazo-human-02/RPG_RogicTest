@@ -20,6 +20,7 @@ public class MenuManager(MenuSelector menuSelector, ProvidorContext providorCont
 
     private readonly MenuSelector _menuSelector = menuSelector;
     private IMenu? _currentMenu = null;
+    public bool IsOpenMenu => _currentMenu != null;
     public void HandleInput(int num)
     {
         _currentMenu?.HandleInput(num);

@@ -9,6 +9,8 @@ public class ScreenManager(MenuManager menuManager, SelectorManager selectorMana
     private readonly MenuManager _menuManager = menuManager;
     private readonly SelectorManager _selectorManager = selectorManager;
     private bool _isOpenSelector => _selectorManager.IsSelecting;
+    private bool _isOpenMenu => _menuManager.IsOpenMenu;
+    public bool ValidHandleInput => _isOpenSelector || _isOpenMenu;
     public void OpenMenu(PartyController partyController, ConditionContext conditionContext)
     {
         _menuManager.OpenMenuSelector(partyController, conditionContext, RequestOpenSelector);
@@ -24,7 +26,7 @@ public class ScreenManager(MenuManager menuManager, SelectorManager selectorMana
         {
             _selectorManager.HandleInput(num);
         }
-        else
+        else if(_isOpenMenu)
         {
             _menuManager.HandleInput(num);
         }
