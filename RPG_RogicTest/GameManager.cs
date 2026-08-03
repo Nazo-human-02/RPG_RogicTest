@@ -50,7 +50,7 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
     {
         _screenManager.OpenMenu(_partyController, conditionContext);
     }
-    public BattleResult OnRequestBattle(List<EnemyCharacter> enemies, FieldType fieldType, int floorNum = 0)
+    public void OnRequestBattle(BattleRequest battleRequest)
     {
         BattleManager battleManager = 
             _battleManagerGenerator.Create(
@@ -58,8 +58,17 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
                 _providorContext.RandomProvider,
                 _providorContext.InputProvider, 
                 _providorContext.ScreenProvider,
-                enemies, _partyController,
-                fieldType, floorNum);
-        return battleManager.BattleStart();
+                battleRequest.Enemies, _partyController,
+                battleRequest.FieldType, battleRequest.floorNum);
+        BattleResult result = battleManager.BattleStart();
+        battleRequest.OnFinished.Invoke(result);
     }
 }
+public record BattleRequest
+(
+    List<EnemyCharacter> Enemies,
+    FieldType FieldType,
+    Action<BattleResult> OnFinished,
+    bool IsBossBattle,
+    int floorNum = 0
+);

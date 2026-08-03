@@ -22,7 +22,7 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
 
     private DungeonState _currentState = DungeonState.Exit;
     private Action<ConditionContext>? _requestOpenMenu;
-    private Func<List<EnemyCharacter>, FieldType, int, BattleResult>? _requestBattle;
+    private Action<BattleRequest>? _requestBattle;
     private Action<ISelectorRequest>? _requestOpenSelector;
 
     //状態
@@ -30,9 +30,12 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
     private DungeonFloor? _currentFloor;
     private RouteData? _currentRoute;
     private int _currentFloorNumber;
+    private BattleRequest? _battleRequest;
+    private BattleResult? _battleResult;
+    private bool _waitForInput = false;
     //
     public void Initialize(Action<ConditionContext> requestOpenMenu, 
-        Func<List<EnemyCharacter>, FieldType, int, BattleResult> requestBattle, 
+        Action<BattleRequest> requestBattle, 
         Action<ISelectorRequest> requestOpenSelector)
     {
         _requestOpenMenu = requestOpenMenu;
@@ -42,7 +45,7 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
     }
     private void ClearState()
     {
-        _currentState = DungeonState.Exit;
+        _currentState = DungeonState.Enter;
         _partyController = null;
         _currentFloor = null;
         _currentRoute = null;
@@ -50,46 +53,49 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
     }
     public void NextState()
     {
-        CheckPartyState();
-        if (!IsEntering)
-        {
-            ExitDungeon();
-            return;
-        }
+        if(!IsEntering || _waitForInput)
+            { return; }
         switch (_currentState)
         {
-            case DungeonState.Enter:
+            case DungeonState.RouteSelect: //進行方向選択(=>イベント実行に遷移)
                 RouteSelect();
                 break;
-            case DungeonState.RouteSelect:
+
+            case DungeonState.ProceedFloor: //フロアを進む(=>進行方向選択に遷移)
                 ProceedFloor();
                 break;
 
-            case DungeonState.ProceedFloor:
-                CheckFloorState();
-                if (_currentFloor.IsBossReached)
-                    EncounterBossEvent();
-                else
-                    ExecuteDungeonEvent();
-                break;
-            case DungeonState.Event:
-                RouteSelect();
+            case DungeonState.Event: //ダンジョンイベント実行(=>フロアを進むor脱出に遷移)
+                ExecuteDungeonEvent();
                 break;
 
-            case DungeonState.Boss:
+            case DungeonState.Boss: //ボス戦開始(=>次の階層に進むor脱出に遷移)
+                EncounterBossEvent();
+                break;
+
+            case DungeonState.Battle: //バトル実行(=>アフターバトルに遷移)
+                BattleStart();
+                break;
+
+            case DungeonState.AfterBattle: //アフターバトル(=>結果、ボス戦か、により分岐)
+                AfterBattle();
+                break;
+
+            case DungeonState.NextFloor: //次の階層に進む(=>進行方向選択に遷移)
                 ProceedToNextFloor();
                 break;
 
-            case DungeonState.NextFloor:
-                RouteSelect();
+            case DungeonState.Exit: //脱出(=>終了、リセット)
+                ExitDungeon();
                 break;
         };
     }
     public void EnterDungeon(PartyController enterdParty, int floorNum = 1)
     {
+        if(_currentState is not DungeonState.Enter)
+            { return; }
         IsEntering = true;
 
-        _currentState = DungeonState.Enter;
         _currentFloorNumber = floorNum;
         _currentFloor = new DungeonFloor(_currentFloorNumber);
         _partyController = enterdParty;
@@ -101,7 +107,7 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
         _screenProvider.Set(ScreenLayer.MainView, TextMasterData.GetPartyText(_partyController));
         _screenProvider.RefreshUntil();
 
-        NextState();
+        _currentState = DungeonState.RouteSelect;
     }
     private void ProceedToNextFloor()
     {
@@ -115,7 +121,7 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
         _screenProvider.RefreshUntil(ScreenLayer.Content);
         _screenProvider.WaitForEnter();
 
-        NextState();
+        _currentState = DungeonState.RouteSelect;
     }
     private void RouteSelect()
     {
@@ -135,27 +141,27 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
                 Selector: _routeSelector,
                 SelectorOpen: () => _routeSelector.Open(routes),
                 OnSuccess: (success) => OnSuccess(success.Value),
-                OnCanceled: (canceled) => OnCanceld(),
+                OnCanceled: (canceled) => OnCanceled(),
                 OnOpenMenu: (openMenu) => _requestOpenMenu?.Invoke(condition)
             );
         _requestOpenSelector?.Invoke(request);
+        _waitForInput = true;
     }
     private void OnSuccess(RouteData routeData)
     {
         _currentRoute = routeData;
-        NextState();
+        _currentState = DungeonState.Event;
+        _waitForInput = false;
     }
-    private void OnCanceld()
+    private void OnCanceled()
     {
-        _currentState = DungeonState.Enter;
-        NextState();
+        _currentState = DungeonState.RouteSelect;
+        _waitForInput = false;
     }
     public void ProceedFloor()
     {
         CheckFloorState();
         CheckRouteState();
-
-        _currentState = DungeonState.ProceedFloor;
 
         _currentFloor.Advance(_currentRoute.Progress);
 
@@ -163,40 +169,103 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
             $"(ボスまで{_currentFloor.FloorData.BossDistance})");
         _screenProvider.RefreshUntil(ScreenLayer.Content);
         _screenProvider.WaitForEnter();
-        NextState();
+
+        _currentState = DungeonState.RouteSelect;
     }
     private void ExitDungeon()
     {
-        _currentState = DungeonState.Exit;
         IsEntering = false;
         _screenProvider.Set(ScreenLayer.Content, "ダンジョンから脱出した");
         _screenProvider.RefreshUntil(ScreenLayer.Content);
         _screenProvider.WaitForEnter();
         _screenProvider.ClearAll();
         _screenProvider.ClearLog();
+        _currentState = DungeonState.Enter;
     }
-    private BattleResult BattleStart(IReadOnlyList<EnemyCharacter> enemyParty)
+    private void OnBattleRequest(IReadOnlyList<EnemyCharacter> enemyParty, bool isBossBattle)
     {
-        _screenProvider.Set(ScreenLayer.SubView, TextMasterData.GetEncounterEnemyText(enemyParty));
-        _screenProvider.RefreshUntil(ScreenLayer.SubView);
-        if(_requestBattle is null)
+        if (_requestBattle is null)
             throw new InvalidOperationException("戦闘開始のリクエストが設定されていません");
-        return _requestBattle!.Invoke(enemyParty.ToList(), FieldType.Dungeon, _currentFloorNumber);
+        BattleRequest request =
+            new(enemyParty.ToList(), FieldType.Dungeon,
+            (result) => OnBattleFinished(result), isBossBattle, _currentFloorNumber);
+        _battleRequest = request;
+        _currentState = DungeonState.Battle;
+    }
+    private void BattleStart()
+    {
+        CheckBattleRequestState();
+        CheckRequestState();
+        _screenProvider.Set(ScreenLayer.SubView, TextMasterData.GetEncounterEnemyText(_battleRequest.Enemies));
+        _screenProvider.RefreshUntil(ScreenLayer.SubView);
+        _requestBattle.Invoke(_battleRequest);
+        _waitForInput = true;
+    }
+    private void OnBattleFinished(BattleResult result)
+    {
+        _waitForInput = false;
+        _battleResult = result;
+        _screenProvider.RefreshUntil(ScreenLayer.Content);
+        _screenProvider.WaitForEnter();
+        _currentState = DungeonState.AfterBattle;
+    }
+    private void AfterBattle()
+    {
+        CheckBattleRequestState();
+        CheckResultState();
+        CheckFloorState();
+        CheckPartyState();
+        
+        switch (_battleResult.BattleResultType)
+        {
+            case BattleResultType.Victory:
+                if (_battleRequest.IsBossBattle)
+                {
+                    _screenProvider.Append(ScreenLayer.Content, "\nフロアボスを撃破した！");
+                    _screenProvider.RefreshUntil(ScreenLayer.Content);
+                    _currentState = DungeonState.NextFloor;
+                }
+                else
+                    _currentState = DungeonState.ProceedFloor;
+                break;
+
+            case BattleResultType.Defeat:
+                _screenProvider.RefreshUntil(ScreenLayer.Content);
+                _screenProvider.WaitForEnter();
+                _currentState = DungeonState.Exit;
+                break;
+
+            case BattleResultType.Escape:
+                _screenProvider.Append(ScreenLayer.Content, $"{_partyController.PartyMember.First().Name}は逃走に成功した");
+                if (_battleResult.ExitDungeon)
+                    _currentState = DungeonState.Exit;
+                else
+                    _currentState = DungeonState.ProceedFloor;
+                break;
+        }
+        _battleRequest = null;
+        _battleResult = null;
     }
     private void ExecuteDungeonEvent()
     {
         CheckRouteState();
         CheckFloorState();
-        _currentState = DungeonState.Event;
-        IsEntering = _currentRoute.EventType switch
+        switch (_currentRoute.EventType)
         {
-            DungeonEventType.Battle => BattleEvent(),
-            DungeonEventType.Treasure => TreasureEvent(),
-            DungeonEventType.None => NoneEvent(),
-            _ => throw new InvalidOperationException("想定外のイベント"),
-        };
+            case DungeonEventType.Battle:
+                BattleEvent(false);
+                break;
+            case DungeonEventType.Treasure:
+                TreasureEvent();
+                break;
+            case DungeonEventType.None:
+                NoneEvent();
+                break;
+            default:
+                throw new InvalidOperationException("想定外のイベント");
+        }
     }
-    private IReadOnlyList<EnemyCharacter> GetEncounterBoss()
+    private IReadOnlyList<EnemyCharacter> GetEncounterBoss() //ボスエネミー生成
     {
         CheckFloorState();
         SpawnEnemyTable spawnTable = _currentFloor.GetSpawnTable();
@@ -205,68 +274,42 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
         IReadOnlyList<EnemyCharacter> bosses = _enemyGenerator.CreateBossEnemies(bossParty.BossMembers);
         return bosses;
     }
-    private bool BattleEvent()
+    private void BattleEvent(bool isBoss) //イベント用
     {
         CheckRouteState();
-        CheckPartyState();
         if (_currentRoute.RouteContentData is BattleEventContent battle)
         {
-            var battleResult = BattleStart(battle.EnemyParty);
-            if (battleResult.BattleResultType == BattleResultType.Defeat)
-            {
-                _screenProvider.RefreshUntil(ScreenLayer.Content);
-                _screenProvider.WaitForEnter();
-                return false;
-            }
-            else if (battleResult.BattleResultType == BattleResultType.Victory)
-            {
-            }
-            else if (battleResult.BattleResultType == BattleResultType.Escape)
-            {
-                _screenProvider.Append(ScreenLayer.Content, $"{_partyController.PartyMember.First().Name}は逃走に成功した");
-            }
-            _screenProvider.RefreshUntil(ScreenLayer.Content);
-            _screenProvider.WaitForEnter();
+            OnBattleRequest(battle.EnemyParty, isBoss);
         }
-        return true;
     }
-    private bool TreasureEvent()
+    private void TreasureEvent() //イベント用
     {
         CheckRouteState();
         if (_currentRoute.RouteContentData is TreasureEventContent treasure)
         {
             _screenProvider.Set(ScreenLayer.Content, "宝箱を見つけた(仮)");
             _screenProvider.RefreshUntil(ScreenLayer.Content);
-            _screenProvider.WaitForEnter();
         }
-        return true;
+        _currentState = DungeonState.ProceedFloor;
+        _screenProvider.WaitForEnter();
     }
-    private bool NoneEvent()
+    private void NoneEvent() //イベント用
     {
+        _currentState = DungeonState.ProceedFloor;
         _screenProvider.Set(ScreenLayer.Content, "何もなかった(仮)");
         _screenProvider.RefreshUntil(ScreenLayer.Content);
         _screenProvider.WaitForEnter();
-        return true;
     }
     private void EncounterBossEvent()
     {
-        _currentState = DungeonState.Boss;
         _screenProvider.Append(ScreenLayer.Content, "ボスの気配がする(仮)");
         _screenProvider.RefreshUntil(ScreenLayer.Content);
         _screenProvider.WaitForEnter();
 
         var bosses = GetEncounterBoss();
-        var bossBattleResult = BattleStart(bosses);
-        if (bossBattleResult.BattleResultType == BattleResultType.Defeat)
-            IsEntering = false;
-        else if (bossBattleResult.BattleResultType == BattleResultType.Victory)
-        {
-            _screenProvider.Append(ScreenLayer.Content, "\nフロアボスを撃破した！");
-            _screenProvider.RefreshUntil(ScreenLayer.Content);
-        }
-
-        NextState();
+        OnBattleRequest(bosses, true);
     }
+    #region チェック用
     [MemberNotNull(nameof(_partyController))]
     private void CheckPartyState()
     {
@@ -285,5 +328,23 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
         if (_currentRoute is null)
             throw new InvalidOperationException("ルートが設定されていません");
     }
-
+    [MemberNotNull(nameof(_battleRequest))]
+    private void CheckBattleRequestState()
+    {
+        if (_battleRequest is null)
+            throw new InvalidOperationException("戦闘リクエスト内容が設定されていません");
+    }
+    [MemberNotNull(nameof(_requestBattle))]
+    private void CheckRequestState()
+    {
+        if (_requestBattle is null)
+            throw new InvalidOperationException("戦闘開始のリクエストが設定されていません");
+    }
+    [MemberNotNull(nameof(_battleResult))]
+    private void CheckResultState()
+    {
+        if (_battleResult is null)
+            throw new InvalidOperationException("戦闘結果が設定されていません");
+    }
+    #endregion
 }
