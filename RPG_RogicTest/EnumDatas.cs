@@ -32,7 +32,19 @@ public enum BattleResultType { Victory, Defeat, Escape, ContinueBattle};
 public enum UseLessType { NotEnoughCost, NoneTargets, Invalid, ConditionDisMatch, CoolTime, Error, UseAble};
 public enum MenuState { MainMenu, Detail, Selection};
 public enum DungeonState { Enter, RouteSelect, Event, Battle, AfterBattle, Boss, ProceedFloor, NextFloor, Exit};
-public enum BattleState { BattleStart, CommandSelect, Action, BattleEnd };
+public enum BattleState { 
+    BattleStart,
+    UpdateBattleCondition,
+    CreateActorAction,
+    SelectCommand,
+    SetActionSchedule,
+    TurnStart,
+    Action, 
+    TurnEnd,
+    BattleEnd,
+    RewardProcess
+};
+public enum SelectStep {  SelectCommand, SelectSkill, SelectItem, SelectTargets};
 public enum Phase
 {
     StartBattle, //戦闘開始

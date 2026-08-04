@@ -34,7 +34,7 @@ public class UseItemSelecter(ILogProvider logProvider, IInputProvider inputProvi
         }
         _selectionCommands[0] = new("|もどる|==>[0]", 0, () => new SelectionCancel<SelectItemData>());
     }
-    public void Open(Dictionary<GameId<IItemId>, int> itemInventory, ConditionContext conditionContext)
+    public void Open(IReadOnlyDictionary<GameId<IItemId>, int> itemInventory, ConditionContext conditionContext)
     {
         InitializeCommands(itemInventory, conditionContext);
         Render();

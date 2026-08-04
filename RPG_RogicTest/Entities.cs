@@ -7,6 +7,7 @@ public abstract class Entity : ITalkable
     public NotificationContainer Notifications { get; set; } = new();
 
     public HashSet<Skill> ValidSkills { get; set; } = new();
+    public Skill? DefaultSkill { get; private set; } = null;
     public string? Name { get; protected set; }
     public GameId<IBaseStatId> EntityID { get; protected set; }
 

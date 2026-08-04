@@ -14,6 +14,8 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
     private readonly DungeonManager _dungeonManager = dungeonManager;
     private readonly PartyController _partyController = partyController;
 
+    private BattleManager? _battleManager;
+
     public void InitializeDungeonManager()
     {
         _dungeonManager.Initialize(OpenMenuWindow, OnRequestBattle,
@@ -26,8 +28,9 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
         {
             if(_screenManager.ValidHandleInput)
                 HandleInput();
-
-            if (_dungeonManager.IsEntering)
+            else if (_battleManager is not null)
+                _battleManager.NextState();
+            else if (_dungeonManager.IsEntering)
                 _dungeonManager.NextState();
         }
     }
@@ -63,8 +66,15 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
                 _providorContext.ScreenProvider,
                 battleRequest.Enemies, _partyController,
                 battleRequest.FieldType, battleRequest.floorNum);
-        BattleResult result = battleManager.BattleStart();
-        battleRequest.OnFinished.Invoke(result);
+        battleManager.Initialize(
+            request => _screenManager.RequestOpenSelector(request),
+            (result) => 
+            {
+                battleRequest.OnFinished(result); 
+                _battleManager = null; 
+            });
+
+        _battleManager = battleManager;
     }
 }
 public record BattleRequest

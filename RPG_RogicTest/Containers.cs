@@ -425,7 +425,8 @@ public record ActionSource
     Notification? Notification = null
 )
 {
-    public static ActionSource Default => new (ActionSourceType.Default);
+    public static ActionSource Default(Skill? skill = null, GameId<IItemId> itemId = default) 
+        => new (ActionSourceType.Default, skill, itemId);
     public static ActionSource FromSkill(Skill skill) => new (ActionSourceType.Skill, skill);
     public static ActionSource FromItem(GameId<IItemId> itemId) => new (ActionSourceType.Item, null, itemId);
     public static ActionSource FromNotification(Notification notification) => 

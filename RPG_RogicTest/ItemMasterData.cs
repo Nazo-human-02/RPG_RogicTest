@@ -80,4 +80,8 @@ public record struct TargetData
     TargetType TargetType,
     TargetSelectType TargetSelectType,
     int TargetAmount
-);
+)
+{
+    public static readonly TargetData Self = new(TargetType.Self, TargetSelectType.Self, 1);
+    public static readonly TargetData SingleTarget = new(TargetType.Enemy, TargetSelectType.Self, 1);
+}

@@ -6,10 +6,16 @@ using System.Threading.Tasks;
 
 public class BattleActionQueue(GameSelectionService gameSelection)
 {
-    private readonly CommandSelect _commandSelect = gameSelection.CommandSelect;
-    private readonly SkillSelection _skillSelection = gameSelection.SkillSelection;
+    private readonly CommandSelect _commandSelector = gameSelection.CommandSelect;
+    private readonly SkillSelection _skillSelector = gameSelection.SkillSelection;
     private readonly UseItemSelecter _itemSelector = gameSelection.UseItemSelecter;
-    private readonly TargetSelector _targetSelect = gameSelection.TargetSelect;
+    private readonly TargetSelector _targetSelector = gameSelection.TargetSelect;
+
+    private Action<ISelectorRequest>? _openRequest;
+    public void Initialize(Action<ISelectorRequest> openRequest)
+    {
+        _openRequest = openRequest;
+    }
     public List<ActionUnit[]> CreateEnemyActions(ConditionContext conditionContext)
     {
         List<ActionUnit[]> actionUnits = new();
@@ -24,10 +30,36 @@ public class BattleActionQueue(GameSelectionService gameSelection)
         }
         return actionUnits;
     }
-
+    public void CreatePlayerCommand(ConditionContext conditionContext, Action<ActionType> onSelected, Action onCanceled)
+    {
+        RequestOpenSelector<ActionType> request = 
+            new(_commandSelector, 
+            () => _commandSelector.Open(conditionContext.User!), 
+            (success) => onSelected(success.Value),
+            _ => onCanceled());
+    }
+    public void SelectSkill(ConditionContext conditionContext, Action<Skill> onSelected, Action onCanceled)
+    {
+        RequestOpenSelector<Skill> request =
+            new(_skillSelector, () => _skillSelector.Open(conditionContext.User!), 
+            (success) => onSelected(success.Value),_ => onCanceled());
+    }
+    public void SelectItem(ConditionContext conditionContext, Action<SelectItemData> onSelected, Action onCanceled)
+    {
+        RequestOpenSelector<SelectItemData> request =
+            new(_itemSelector,
+            () => _itemSelector.Open(conditionContext.PartyController.Inventory.ItemInventory, conditionContext), 
+            (success) => onSelected(success.Value), _ => onCanceled());
+    }
+    public void SelectTargets(TargetResolveResult resolveResult, Action<List<Entity>> onSelected, Action onCanceled)
+    {
+        RequestOpenSelector<List<Entity>> request =
+            new(_targetSelector, () => _targetSelector.Open(resolveResult), 
+            (success) => onSelected(success.Value), _ => onCanceled());
+    }
     public List<ActionUnit[]> CreatePlayerActions(ConditionContext conditionContext)
     {
-        _commandSelect.InitializeCommand();
+        _commandSelector.InitializeCommand();
         List<ActionUnit[]> actionUnits = new();
         foreach(var member in conditionContext.BattleSession!.GetAliveParty())
         {
@@ -36,7 +68,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
                 continue;
             while (true)
             {
-                ActionType actionType = _commandSelect.WaitCommandSelect(member);
+                ActionType actionType = _commandSelector.WaitCommandSelect(member);
                 var units = GetActionUnits(actionType, member, conditionContext with { User = member });
                 if (units == null || units.Length == 0)
                     continue;
@@ -74,7 +106,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
             (conditionData != null) ? conditionData : ConditionData.Default;
         TargetData targetData = new TargetData(TargetType.Enemy, TargetSelectType.Self, 1);
         TargetResolveResult resolveResult = TargetResolver.GetTargetResolve(condition, conditionContext, targetData);
-        var result = _targetSelect.SelectingTargets(resolveResult);
+        var result = _targetSelector.SelectingTargets(resolveResult);
         if (result is not SelectionSuccess<List<Entity>> targets || targets.Value.Count == 0)
         {
             return null;
@@ -110,7 +142,7 @@ public class BattleActionQueue(GameSelectionService gameSelection)
             {
                 return null; //commandSelectに戻る
             }
-            var targetResult = _targetSelect.SelectingTargets(success.Value.TargetResolveResult);
+            var targetResult = _targetSelector.SelectingTargets(success.Value.TargetResolveResult);
             if (targetResult is not SelectionSuccess<List<Entity>> targets || targets.Value.Count == 0)
             {
                 continue; //itemSelectに戻る
@@ -133,18 +165,18 @@ public class BattleActionQueue(GameSelectionService gameSelection)
     }
     private SelectionResult<Skill> SelectUseSkill(Entity entity)
     {
-        return _skillSelection.SkillSelect(entity);
+        return _skillSelector.SkillSelect(entity);
     }
 
     private SelectionResult<List<Entity>> SelectTargets(Entity entity, Skill skill, ConditionContext conditionContext)
     {
         var resolveResult = 
             TargetResolver.GetTargetResolve(skill.ConditionData, conditionContext with {User = entity }, skill.TargetData);
-        return _targetSelect.SelectingTargets(resolveResult);
+        return _targetSelector.SelectingTargets(resolveResult);
     }
     private SelectionResult<List<Entity>> SelectTargets(TargetResolveResult targetResolveResult)
     {
-        return _targetSelect.SelectingTargets(targetResolveResult);
+        return _targetSelector.SelectingTargets(targetResolveResult);
     }
 }
 

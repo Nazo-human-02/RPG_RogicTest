@@ -1,37 +1,6 @@
 ﻿using System;
 using System.Data;
-
-public class BattleSession(IReadOnlySet<CharacterBase> party, IReadOnlyList<EnemyCharacter> enemies)
-{
-    public IReadOnlySet<CharacterBase> Party { get; private set; } = party;
-    public IReadOnlyList<EnemyCharacter> Enemies { get; private set; } = enemies;
-
-    public List<CharacterBase> GetAliveParty() => Party.Where(p => !p.Stat.IsDead).ToList();
-	public List<EnemyCharacter> GetAliveEnemy() => Enemies.Where(e => !e.Stat.IsDead).ToList();
-	public List<Entity> GetAllEntity() => Party.Cast<Entity>().Concat(Enemies).ToList();
-
-	public (bool,BattleResultType) IsBattleOver() //int=1で勝利、int=2で敗北
-	{
-		if(GetAliveParty().Count == 0)
-		{
-			return (true, BattleResultType.Defeat);
-		}
-        else if(GetAliveEnemy().Count == 0)
-        {
-			return (true, BattleResultType.Victory);
-        }
-//		else if(GetAliveEnemy().Count > 0 && GetAliveParty().Count > 0)
-//		{
-//			return (true, BattleResultType.Escape);
-//		}
-		else
-		{
-			return (false, BattleResultType.ContinueBattle);
-		}
-    }
-}
-
-
+using System.Diagnostics.CodeAnalysis;
 
 public class BattleManager(ProvidorContext providorContext, BattleServices battleServices,
 	BattleRuntimeContext battleRuntimeContext, PartyController partyController, BattleSession session, FieldContext fieldContext)
@@ -43,14 +12,26 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	private readonly BattleSession _battleSession = session;
 	private readonly ConditionContext _baseConditioncontext = 
 		new(true, 0, null, null, partyController, session, fieldContext, providorContext.RandomProvider);
-
+	private ConditionContext CurrentCondition(Entity? user = null, Entity? target = null)
+		=> _baseConditioncontext with {User = user, Target = target, CurrentTurn = _currentTurn };
 	public bool ExitRequested => _exitDungeon || _exitBattle;
 	private bool _exitDungeon = false;
 	private bool _exitBattle = false;
 
+	private BattleCommandFlow? _battleCommandFlow = null!;
+	private BattleScreenController _screenController = new(providorContext.ScreenProvider);
 	private Action<ISelectorRequest>? _selectorOpenRequest;
+	private Action<BattleResult>? _onBattleFinished;
 	private BattleState _currentState;
+	private readonly Stack<BattleState> _stateFlow = new();
 	private int _currentTurn = 0;
+	private Stack<Entity> _awaitSelectActors = new();
+	private Stack<Entity> _createdPlayer = new();
+	private BattleResultType _resultType = BattleResultType.ContinueBattle;
+	private bool _isSelecting = false;
+	private bool _isActing = false;
+	private readonly List<ActionUnit[]> _createdActions = new();
+	private BattleResult? _battleResult;
     private void Dispose()
 	{
 		foreach (Entity party in _battleSession.Party)
@@ -60,143 +41,259 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 		}
 		
 	}
-    public BattleResult BattleStart()
+	private void UpdateState(BattleState state)
 	{
-		_providorContext.ScreenProvider.Set(ScreenLayer.Content, "戦闘開始");
-		_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
-		_providorContext.ScreenProvider.WaitForEnter();
-
-		BattleNotification.Initialize(_battleSession, this);
-
-		bool isOver = false;
-		BattleResultType resultType = BattleResultType.ContinueBattle;
-
-        ExecuteNotify(Phase.StartBattle, null, null); //通知配布と実行
-
-        _currentTurn = 1;
-		var conditionContext = _baseConditioncontext with { CurrentTurn = _currentTurn };
-        while (!isOver)
+		_stateFlow.Push(_currentState);
+		_currentState = state;
+	}
+	public void Initialize(Action<ISelectorRequest> openRequest, Action<BattleResult> onBattleFinished)
+	{
+		_selectorOpenRequest = openRequest;
+		_onBattleFinished = onBattleFinished;
+		Reset();
+	}
+	private void Reset()
+	{
+        _stateFlow.Clear();
+        _createdActions.Clear();
+        _awaitSelectActors.Clear();
+		_createdPlayer.Clear();
+        _currentState = BattleState.BattleStart;
+		_currentTurn = 0;
+		_exitBattle = false;
+		_exitDungeon = false;
+		_isActing = false;
+		_isSelecting = false;
+		_battleResult = null;
+    }
+	public void NextState() //状態遷移用
+	{
+		if(_isSelecting)
+			{ return; }
+		switch (_currentState)
 		{
-			_providorContext.ScreenProvider.Set(ScreenLayer.Label, $"-----------{_currentTurn}ターン目---------------");
-			_providorContext.ScreenProvider.Set
-				(ScreenLayer.SubView, TextMasterData.GetEncounterEnemyText(_battleSession.GetAliveEnemy()));
-			_providorContext.ScreenProvider.Clear(ScreenLayer.Content);
-            _providorContext.ScreenProvider.RefreshUntil();
+			case BattleState.BattleStart:
+				BattleStart();break;
 
-            conditionContext = _baseConditioncontext with { CurrentTurn = _currentTurn };
-			BattleNotification.UpDateEntities();
-			List<ActionUnit[]> enemyActions = _battleServices.BattleActionQueue.CreateEnemyActions(conditionContext);
-			List<ActionUnit[]> playerActions = _battleServices.BattleActionQueue.CreatePlayerActions(conditionContext);
-			var sortedActions = SortActionQueue(enemyActions.Concat(playerActions).ToList());
-			_runtimeContext.Enqueue(sortedActions);
+			case BattleState.UpdateBattleCondition:
+				UpdateBattleCondition(); break;
 
-            ExecuteNotify(Phase.StartTurn, null, null); //通知配布と実行
+			case BattleState.CreateActorAction:
+				SelectActor(); break;
 
+			case BattleState.SetActionSchedule:
+				SetActionSchedule(); break;
 
-            if (ExitRequested) //強制終了フラグ確認
-				break;
+			case BattleState.TurnStart:
+				TurnStart(); break;
 
-            ExecuteNotify(Phase.EndTurn, null, null); //通知配布と実行
+			case BattleState.Action:
+				ExecuteAction(); break;
 
+			case BattleState.TurnEnd:
+				TurnEnd(); break;
 
-            (isOver, resultType) = _battleSession.IsBattleOver();
-			_battleServices.ActionExecutor.ClearLogCache();
+			case BattleState.BattleEnd:
+				BattleEnd(); break;
 
-			//持続効果,スキルのターンを減少
-			Tick();
-			//
+			case BattleState.RewardProcess:
+				RewardProcess(); break;
+		}
+	}
+	private void BattleStart()
+	{
+		_screenController.BattleStart();
+		_battleServices.BattleActionQueue.Initialize(_selectorOpenRequest!);
+		_battleCommandFlow = new(_battleServices);
+        BattleNotification.Initialize(_battleSession, this);
+		BattleNotification.TriggerPhase(Phase.StartBattle, null, null);
 
-            _currentTurn++;
-
-			_providorContext.ScreenProvider.WaitForEnter();
-        }
-        if (ExitRequested)
-			resultType = BattleResultType.Escape;
-
-		_providorContext.ScreenProvider.Clear(ScreenLayer.Label);
-        _providorContext.ScreenProvider.Clear(ScreenLayer.SubView);
-
-        var result = CheckBattleResult(resultType);
-
-		ExecuteNotify(Phase.EndBattle, null, null); //通知配布と実行
-
-		Dispose();
-		if (resultType == BattleResultType.Victory) //報酬処理
+		UpdateState(BattleState.Action);
+    }
+	private void UpdateBattleCondition()
+	{
+		(bool isEnd, BattleResultType resultType) = _battleSession.IsBattleOver();
+		if(isEnd || ExitRequested)
 		{
+			_resultType = (ExitRequested) ? BattleResultType.Escape : resultType;
+			UpdateState(BattleState.BattleEnd);
+		}
+		else
+		{
+			if(_isActing)
+			{
+				UpdateState(BattleState.Action);
+			}
+			else if(_awaitSelectActors.Count == 0)
+			{
+				_awaitSelectActors = new(_battleSession.GetAllAliveEntity());
+				UpdateState(BattleState.CreateActorAction);
+			}
+			else
+			{
+				UpdateState(BattleState.Action);
+			}
+		}
+	}
+	private void SelectActor()
+	{
+		if (_awaitSelectActors.TryPop(out var actor))
+		{
+            if(actor is CharacterBase chara) _createdPlayer.Push(chara);
+			CreateAction(actor);
+            UpdateState(BattleState.CreateActorAction);
+		}
+		else
+			UpdateState(BattleState.TurnStart);
+	}
+
+	private void CreateAction(Entity entity)
+	{
+		_isSelecting = true;
+		_battleCommandFlow!.StartSelect(entity, CurrentCondition(user:entity), 
+			(action) => OnSelected(action), () => OnCanceled());
+	}
+	private void OnSelected(ActionUnit[] actionUnits)
+	{
+		_isSelecting = false;
+		_createdActions.Add(actionUnits);
+		UpdateState(BattleState.CreateActorAction);
+	}
+	private void OnCanceled() //前のプレイヤーキャラの選択に戻りたい
+	{
+		if(_createdPlayer.TryPop(out var previousEntity))
+		{
+			if(_createdPlayer.TryPeek(out var entity))
+			{
+				_awaitSelectActors.Push(previousEntity);
+				CreateAction(entity);
+				return;
+			}
+            _createdPlayer.Push(previousEntity);
+			CreateAction(previousEntity);
+		}
+	}
+	private void SetActionSchedule()
+	{
+        _runtimeContext.Enqueue(SortActionQueue(_createdActions));
+		_createdActions.Clear();
+        UpdateState(BattleState.Action);
+	}
+	private void TurnStart()
+	{
+        _currentTurn++;
+        BattleNotification.UpDateEntities();
+		_screenController.TurnStart(_currentTurn, _battleSession);
+		BattleNotification.TriggerPhase(Phase.StartTurn, null, null);
+		UpdateState(BattleState.Action);
+    }
+	private void ExecuteAction()
+	{
+		if (TryExecuteActionUnit(out var currentAction))
+		{
+			_isActing = true;
+			_battleServices.ActionExecutor.ExecuteAction(currentAction!, this, CurrentCondition());
+			_screenController.UpdatePartyText(_partyController);
+
+			UpdateState(BattleState.UpdateBattleCondition);
+		}
+		else if (_stateFlow.TryPeek(out var state))
+		{
+			_isActing = false;
+			if (state is BattleState.TurnStart)
+				UpdateState(BattleState.SetActionSchedule);
+
+			else if (state is BattleState.TurnEnd || state is BattleState.BattleStart)
+				UpdateState(BattleState.UpdateBattleCondition);
+
+			else if (state is BattleState.UpdateBattleCondition)
+				UpdateState(BattleState.TurnEnd);
+
+			else if (state is BattleState.BattleEnd)
+				UpdateState(BattleState.RewardProcess);
+
+			else
+				UpdateState(BattleState.TurnEnd);
+		}
+		else
+		{
+            _isActing = false;
+            UpdateState(BattleState.TurnEnd);
+		}
+    }
+	private void TurnEnd()
+	{
+		BattleNotification.TriggerPhase(Phase.EndTurn, null, null);
+        _battleServices.ActionExecutor.ClearLogCache();
+        Tick();
+
+		UpdateState(BattleState.Action);
+		_screenController.RefreshAndWait();
+    }
+	private void BattleEnd()
+	{
+        _screenController.Clear(ScreenLayer.Label);
+        _screenController.Clear(ScreenLayer.SubView);
+        _battleResult = CheckBattleResult(_resultType);
+        BattleNotification.TriggerPhase(Phase.EndBattle, null, null); //通知配布と実行
+		UpdateState(BattleState.Action);
+    }
+
+	private void RewardProcess()
+	{
+        Dispose();
+        if (_resultType == BattleResultType.Victory) //報酬処理
+        {
             var reward = _battleServices.BattleRewardCalculator.CalculateReward(_battleSession.Enemies);
             _partyController.GetReward(reward);
-            _providorContext.ScreenProvider.RefreshUntil();
-            _providorContext.ScreenProvider.WaitForEnter();
-			_providorContext.ScreenProvider.Set(ScreenLayer.MainView, TextMasterData.GetPartyText(_partyController));
-
-		}
-		_providorContext.ScreenProvider.RefreshUntil();
-		return result;
-	}
+			_screenController.RefreshAndWait();
+        }
+        _screenController.UpdatePartyText(_partyController);
+		_onBattleFinished!.Invoke(_battleResult!);
+		Reset();
+    }
 	private void Tick()
 	{
         foreach (Entity enemy in _battleSession.GetAliveEnemy()) enemy.Notifications.TickNotify();
         foreach (Entity party in _battleSession.GetAliveParty()) party.Notifications.TickNotify();
         foreach (Entity entity in _battleSession.GetAllEntity()) entity.ReduceSkillCoolTime();
     }
-	private void ExecuteNotify(Phase phase, ActionUnit? actionUnit = null, Entity? target = null)
-	{
-        BattleNotification.TriggerPhase(Phase.StartBattle, actionUnit, target); //戦闘開始
-        ExecuteActionUnit(_baseConditioncontext with 
-		{CurrentTurn = _currentTurn, User = actionUnit?.Executor, Target = target}); //通知とセット
-    }
-    public Queue<ActionUnit[]> SortActionQueue(List<ActionUnit[]> actionUnits)
+    private Queue<ActionUnit[]> SortActionQueue(List<ActionUnit[]> actionUnits)
 	{
 		return _battleServices.TurnScheduler.ActionOrder(actionUnits);
 	}
 
-	public void ExecuteActionUnit(ConditionContext conditionContext)
+	public bool TryExecuteActionUnit(out ActionUnit[]? action)
 	{
-		while((!_runtimeContext.IsActionEmpty()) && !_battleSession.IsBattleOver().Item1)
+		action = null;
+		if(_runtimeContext.IsActionEmpty() || _battleSession.IsBattleOver().Item1)
 		{
-			if(!_runtimeContext.TryGetNextAction(out var currentAction))
-			{
-				break;
-			}
-			_battleServices.ActionExecutor.ExecuteAction(currentAction, this, conditionContext);
-
-            _providorContext.ScreenProvider.Set(ScreenLayer.MainView, TextMasterData.GetPartyText(_partyController));
-			_providorContext.ScreenProvider.RefreshUntil();
+			return false;
+		}
+		if(_runtimeContext.TryGetNextAction(out var currentAction))
+		{
+			action = currentAction;
+			return true;
         }
+		return false;
     }
 
 	private BattleResult CheckBattleResult(BattleResultType resultType)
 	{
-		switch (resultType)
+        _screenController.ResultText(resultType);
+        switch (resultType)
 		{
 			case BattleResultType.Victory:
-                //_providorContext.LogProvider.WriteLog("_戦闘に勝利した!_");
-				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "_戦闘に勝利した!_");
-				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
-				_providorContext.ScreenProvider.WaitForEnter();
                 return new BattleResult(resultType, _exitDungeon);
 
 			case BattleResultType.Defeat:
-                //_providorContext.LogProvider.WriteLog("_戦闘に敗北した..._");
-				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "_戦闘に敗北した..._");
-				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
-				_providorContext.ScreenProvider.WaitForEnter();
                 return new BattleResult(resultType, true);
 				
 			case BattleResultType.Escape:
-				//_providorContext.LogProvider.WriteLog("_戦闘から逃げ出した");
-				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "_戦闘から逃げ出した");
-				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
-				_providorContext.ScreenProvider.WaitForEnter();
                 return new BattleResult(resultType, _exitDungeon);
 				
 			default:
-				//_providorContext.LogProvider.WriteLog("想定外の結果");
-				_providorContext.ScreenProvider.Set(ScreenLayer.Content, "想定外の結果");
-				_providorContext.ScreenProvider.RefreshUntil(ScreenLayer.Content);
-				_providorContext.ScreenProvider.WaitForEnter();
-                return new BattleResult(resultType, true);
-				
+                return new BattleResult(resultType, true);				
         }
     }
 

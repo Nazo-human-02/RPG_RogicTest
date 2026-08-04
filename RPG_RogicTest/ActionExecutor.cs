@@ -14,7 +14,7 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
     {
         _loggedAction.Clear();
     }
-    public void ExecuteAction(ActionUnit[] actionUnits, BattleManager battleManager, ConditionContext conditionContext)
+    public void ExecuteAction(ActionUnit[] actionUnits, BattleManager battleManager, ConditionContext previousCondition)
     {
         _screenProvider.Clear(ScreenLayer.InputArea);
         if (!string.IsNullOrEmpty(actionUnits[0].OnExecuteContent) && !_loggedAction.Contains(actionUnits[0].Guid))
@@ -32,7 +32,7 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
             {
                 continue;
             }
-
+            var condition = previousCondition with { User = actionUnit.Executor, Target = actionUnit.Target };
             loopCount++;
             targets.Add(actionUnit.Target);
             BattleNotification.TriggerPhase(Phase.StartAction, actionUnit, null); //アクション開始
@@ -52,7 +52,7 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
                     break;
 
                 case ActionType.Skill:
-                    SkillAction(battleManager, conditionContext, actionUnit, actionUnit.Executor, loopCount);
+                    SkillAction(battleManager, condition, actionUnit, actionUnit.Executor, loopCount);
                     break;
 
                 case ActionType.Escape:
@@ -60,11 +60,11 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
                     break;
 
                 case ActionType.UseItem:
-                    UseItemAction(actionUnit, conditionContext, loopCount, battleManager);
+                    UseItemAction(actionUnit, condition, loopCount, battleManager);
                     break;
 
                 case ActionType.Heal:
-                    HealAction(actionUnit, conditionContext, loopCount, battleManager);
+                    HealAction(actionUnit, condition, loopCount, battleManager);
                     break;
 
             }
