@@ -107,6 +107,7 @@ public class ConsoleLogProvider(IInputProvider inputProvider) : ILogProvider, IS
     };
     public Queue<string> Content { get; set; } = new();
     public List<string> InputArea { get; set; } = new();
+    public List<string> ErrorArea { get; set; } = new();
     public void WriteLog(string message)
     {
         Console.WriteLine(message);
@@ -114,7 +115,7 @@ public class ConsoleLogProvider(IInputProvider inputProvider) : ILogProvider, IS
 
     public void ClearLog()
     {
-        Console.Clear();
+        Console.Clear(); //一時的なもの
     }
     public void ClearAll()
     {
@@ -139,17 +140,23 @@ public class ConsoleLogProvider(IInputProvider inputProvider) : ILogProvider, IS
         {
             InputArea.Clear();
         }
+        else if (screenLayer == ScreenLayer.ErrorArea)
+        {
+            ErrorArea.Clear();
+        }
     }
     public void RefreshContent(string content)
     {
         Set(ScreenLayer.Content, content);
         Clear(ScreenLayer.InputArea);
+        Clear(ScreenLayer.ErrorArea);
         RefreshUntil();
     }
     public void RefreshInput(string content)
     {
         Set(ScreenLayer.InputArea, content);
         Clear(ScreenLayer.Content);
+        Clear(ScreenLayer.ErrorArea);
         RefreshUntil();
     }
     public void RefreshUntil(ScreenLayer range = ScreenLayer.None)
@@ -178,7 +185,13 @@ public class ConsoleLogProvider(IInputProvider inputProvider) : ILogProvider, IS
                     Console.WriteLine(content);
                 }
             }
-
+            if(layer == range && range is ScreenLayer.ErrorArea or ScreenLayer.None)
+            {
+                foreach (var error in ErrorArea)
+                {
+                    Console.WriteLine(error);
+                }
+            }
         }
     }
     public void Set(ScreenLayer screenLayer, string content)
@@ -191,12 +204,19 @@ public class ConsoleLogProvider(IInputProvider inputProvider) : ILogProvider, IS
         else if (screenLayer == ScreenLayer.Content)
         {
             Content.Clear();
+            ErrorArea.Clear();
             Content.Enqueue(content);
         }
         else if (screenLayer == ScreenLayer.InputArea)
         {
             InputArea.Clear();
+            ErrorArea.Clear();
             InputArea.Add(content);
+        }
+        else if (screenLayer == ScreenLayer.ErrorArea)
+        {
+            ErrorArea.Clear();
+            ErrorArea.Add(content);
         }
     }
     public void Append(ScreenLayer screenLayer, string content)
@@ -229,6 +249,7 @@ public interface IScreenProvider
     Dictionary<ScreenLayer, StringBuilder> _screenLayers { get; }
     Queue<string> Content { get; set; }
     List<string> InputArea { get; set; }
+    List<string> ErrorArea { get; set; }
 
     void RefreshUntil(ScreenLayer RefleshRange = ScreenLayer.None);
 

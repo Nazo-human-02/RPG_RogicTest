@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvider, IScreenProvider screenProvider)
     : ISelector<RouteData>
 {
-    private readonly ILogProvider _log = logProvider;
-    private readonly IInputProvider _input = inputProvider; //外部入力にできたら消す
+    //private readonly ILogProvider _log = logProvider;
+    //private readonly IInputProvider _input = inputProvider; //外部入力にできたら消す
     private readonly IScreenProvider _screen = screenProvider;
 
     private readonly Dictionary<DirectionType, int> _directions = new()
@@ -24,7 +24,7 @@ public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvide
     {
         if(!_selectionCommands.TryGetValue(num, out var command))
         {
-            _screen.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screen.Set(ScreenLayer.ErrorArea, "選択肢の範囲外です");
             _screen.RefreshUntil();
             result = null;
             return;
@@ -34,7 +34,7 @@ public class RouteSelector(ILogProvider logProvider, IInputProvider inputProvide
             return;
         else
         {
-            _screen.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screen.Set(ScreenLayer.ErrorArea, "選択肢の範囲外です");
             _screen.RefreshUntil();
             result = null;
         }

@@ -10,10 +10,10 @@ using System.Threading.Tasks;
 public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProvider,
     IRandomProvider randomProvider, IInputProvider inputProvider)
 {
-    private readonly ILogProvider _logProvider = logProvider;
+    //private readonly ILogProvider _logProvider = logProvider;
     private readonly IScreenProvider _screenProvider = screenProvider; //試し、出来そうならlogからscreenに移行
     private readonly IRandomProvider _randomProvider = randomProvider;
-    private readonly IInputProvider _inputProvider = inputProvider;
+    //private readonly IInputProvider _inputProvider = inputProvider;
     private readonly RouteGenerator _routeGenerator = new RouteGenerator(randomProvider);
     private readonly RouteSelector _routeSelector = new RouteSelector(logProvider, inputProvider, screenProvider);
     private readonly EnemySpawnSelector _enemySpawnSelector = new(randomProvider);
@@ -142,9 +142,9 @@ public class DungeonManager(ILogProvider logProvider, IScreenProvider screenProv
                 SelectorOpen: () => _routeSelector.Open(routes),
                 OnSuccess: (success) => OnSuccess(success.Value),
                 OnCanceled: (canceled) => OnCanceled(),
-                OnOpenMenu: (openMenu) => _requestOpenMenu?.Invoke(condition)
+                OnOpenMenu: (openMenu) => _requestOpenMenu!(condition)
             );
-        _requestOpenSelector?.Invoke(request);
+        _requestOpenSelector!.Invoke(request);
         _waitForInput = true;
     }
     private void OnSuccess(RouteData routeData)

@@ -12,6 +12,7 @@ public class StatusMenu(IInputProvider inputProvider, IScreenProvider screenProv
     public bool IsClosed => _isClosed;
     private bool _isClosed = true;
     public Action<ISelectorRequest>? OpenSelector { get; set; } = null;
+    public Action? OnClosed { get; set; } = null;
     public void OpenMenu(PartyController partyController)
     {
         ValidMenu(partyController);
@@ -47,7 +48,7 @@ public class StatusMenu(IInputProvider inputProvider, IScreenProvider screenProv
     private void TryChangePage(int num)
     {
         if (!ChangePage(num))
-            _screen.Set(ScreenLayer.Content, "ページの切り替えに失敗しました");
+            _screen.Set(ScreenLayer.ErrorArea, "ページの切り替えに失敗しました");
         else
         {
             SetCommands();
@@ -78,5 +79,6 @@ public class StatusMenu(IInputProvider inputProvider, IScreenProvider screenProv
     public void Close()
     {
         _isClosed = true;
+        OnClosed?.Invoke();
     }
 }

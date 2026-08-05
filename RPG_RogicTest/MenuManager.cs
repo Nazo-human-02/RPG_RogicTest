@@ -20,7 +20,8 @@ public class MenuManager(MenuSelector menuSelector, ProvidorContext providorCont
 
     private readonly MenuSelector _menuSelector = menuSelector;
     private IMenu? _currentMenu = null;
-    public bool IsOpenMenu => _currentMenu != null;
+    public bool IsOpenMenu => _currentMenu is not null;
+    public Action? OnReturnSelector { get; set; }
     public void HandleInput(int num)
     {
         _currentMenu?.HandleInput(num);
@@ -34,10 +35,18 @@ public class MenuManager(MenuSelector menuSelector, ProvidorContext providorCont
     {
         Action<SelectionSuccess<MenuType>> onSuccess = (menuType) =>
         OpenMenu(partyController, conditionContext, selectorRequest, menuType.Value);
-        RequestOpenSelector<MenuType> request = new(_menuSelector, () => _menuSelector.Open(), onSuccess);
+
+        void onCanceled(SelectionResult<MenuType> _) => CloseMenu();
+
+        RequestOpenSelector<MenuType> request = new(_menuSelector, 
+            () => _menuSelector.Open(), onSuccess, onCanceled);
+
         selectorRequest.Invoke(request);
     }
-
+    private void CloseMenu()
+    {
+        OnReturnSelector?.Invoke();
+    }
     private void OpenMenu(PartyController partyController, ConditionContext conditionContext,
         Action<ISelectorRequest> selectorRequest, MenuType menuType)
     {
@@ -50,11 +59,13 @@ public class MenuManager(MenuSelector menuSelector, ProvidorContext providorCont
         {
             _currentMenu = menu;
             menu.OpenSelector = selectorRequest;
+            menu.OnClosed = () => OpenMenuSelector(partyController, conditionContext, selectorRequest);
             menu.OpenMenu(partyController);
         }
         else
         {
             Console.WriteLine("未設定");
+            OnReturnSelector?.Invoke();
         }
     }
 }

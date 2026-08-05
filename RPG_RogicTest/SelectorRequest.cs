@@ -16,6 +16,8 @@ public record RequestOpenSelector<T>
     public event Action? Closed;
     public void InvokeResult(SelectionResult<T> result)
     {
+        Closed?.Invoke();
+
         if (result is SelectionSuccess<T> success)
         {
             OnSuccess.Invoke(success);
@@ -27,7 +29,6 @@ public record RequestOpenSelector<T>
         }
         else
             OnCanceled?.Invoke(result);
-        Closed?.Invoke();
     }
     public void HandleInput(int num)
     {

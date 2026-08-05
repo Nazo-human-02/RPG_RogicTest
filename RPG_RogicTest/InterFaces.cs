@@ -44,6 +44,7 @@ public interface IMenu
 {
     MenuState CurrentMenuState { get; }
     Action<ISelectorRequest>? OpenSelector { get; set; }
+    Action? OnClosed { get; set; }
     void OpenMenu(PartyController partyController);
     void HandleInput(int num);
     void Close();

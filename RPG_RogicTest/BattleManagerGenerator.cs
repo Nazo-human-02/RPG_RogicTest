@@ -33,10 +33,12 @@ public class BattleManagerGenerator
     {
         BattleCalculator battleCalculator = new(random);
         TurnScheduler turnScheduler = new(random);
-        BattleRewardCalculator battleRewardCalculator = new(random);
         ActionExecutor actionExecutor = new(battleCalculator, log, screen);
         BattleActionQueue battleActionQueue = new(selectionService);
-        return new BattleServices(turnScheduler, battleRewardCalculator, battleActionQueue, actionExecutor);
+        BattleRewardProcessor battleRewardProcessor = new(random);
+        BattleScreenController battleScreenController = new(screen);
+        return new BattleServices
+            (turnScheduler, battleActionQueue, actionExecutor, battleRewardProcessor, battleScreenController);
     }
 
 }
@@ -52,9 +54,10 @@ public record ProvidorContext
 public record BattleServices
 (
     TurnScheduler TurnScheduler,
-    BattleRewardCalculator BattleRewardCalculator,
     BattleActionQueue BattleActionQueue,
-    ActionExecutor ActionExecutor
+    ActionExecutor ActionExecutor,
+    BattleRewardProcessor BattleRewardProcessor,
+    BattleScreenController BattleScreenController
 );
 
 public class BattleRuntimeContext()

@@ -1,11 +1,10 @@
 ﻿using System;
 
 //パーティー管理,操作
-public class PartyController(ILogProvider logProvider, IScreenProvider screenProvider)
+public class PartyController(IScreenProvider screenProvider)
 {
     public IReadOnlySet<CharacterBase> PartyMember => _partyMember;
     private readonly HashSet<CharacterBase> _partyMember = new();
-    private readonly ILogProvider log = logProvider;
     private readonly IScreenProvider screen = screenProvider;
     const int MaxPartyMember = 4; //パーティーメンバー,増えるかも
     public int OwnedGold { get; private set; } = 0;

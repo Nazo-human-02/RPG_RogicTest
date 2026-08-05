@@ -16,14 +16,20 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
 
     private BattleManager? _battleManager;
 
-    public void InitializeDungeonManager()
+    private void InitializeDungeonManager()
     {
         _dungeonManager.Initialize(OpenMenuWindow, OnRequestBattle,
             (request) => _screenManager.RequestOpenSelector(request));
     }
+    private void InitializeScreenManager()
+    {
+        _screenManager.Initialize();
+    }
     public void MainGameLoop()
     {
+        InitializeScreenManager();
         InitializeDungeonManager();
+        EnterToDungeon();
         while (true)
         {
             if(_screenManager.ValidHandleInput)
@@ -32,14 +38,16 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
                 _battleManager.NextState();
             else if (_dungeonManager.IsEntering)
                 _dungeonManager.NextState();
+            //Console.WriteLine("ループ");
         }
     }
     public void HandleInput()
     {
+        Console.WriteLine("ゲームマネージャー入力待機");
         string? input = _providorContext.InputProvider.Input();
         if (String.IsNullOrEmpty(input) || !int.TryParse(input, out int num))
         {
-            _providorContext.ScreenProvider.Set(ScreenLayer.Content, "入力が正しくありません");
+            _providorContext.ScreenProvider.Set(ScreenLayer.ErrorArea, "入力が正しくありません");
             _providorContext.ScreenProvider.RefreshUntil();
         }
         else
@@ -47,16 +55,16 @@ public class GameManager(ProvidorContext providorContext, BattleManagerGenerator
             _screenManager.HandleInput(num);
         }
     }
-    public void EnterToDungeon(int floorNum = 1)
+    private void EnterToDungeon(int floorNum = 1)
     {
         _dungeonManager.EnterDungeon(_partyController, floorNum);
     }
 
-    public void OpenMenuWindow(ConditionContext conditionContext)
+    private void OpenMenuWindow(ConditionContext conditionContext)
     {
         _screenManager.OpenMenu(_partyController, conditionContext);
     }
-    public void OnRequestBattle(BattleRequest battleRequest)
+    private void OnRequestBattle(BattleRequest battleRequest)
     {
         BattleManager battleManager = 
             _battleManagerGenerator.Create(

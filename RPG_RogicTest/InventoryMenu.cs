@@ -15,7 +15,8 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
     private MenuState _currentMenuState = MenuState.MainMenu;
     public bool IsClosed => _isClosed;
     private bool _isClosed = true;
-    public Action<ISelectorRequest>? OpenSelector { get; set; } = null; 
+    public Action<ISelectorRequest>? OpenSelector { get; set; } = null;
+    public Action? OnClosed { get; set; } = null;
     private Inventory _inventory = new();
 
     public ConditionContext ConditionContext => _conditionContext with { User = _currentMember};
@@ -67,8 +68,11 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
         else if (num == 1)
         {
             if (_onUseItem is null)
-                _screen.Append(ScreenLayer.InputArea, "そのアイテムは使用できません");
-            else 
+            {
+                _screen.Set(ScreenLayer.ErrorArea, "そのアイテムは使用できません");
+                _screen.RefreshUntil();
+            }
+            else
                 _onUseItem!.Invoke();
         }
     }
@@ -91,7 +95,7 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
         }
         else
         {
-            _screen.Append(ScreenLayer.InputArea, "ページの変更に失敗しました。");
+            _screen.Set(ScreenLayer.ErrorArea, "ページの変更に失敗しました。");
         }
     }
     protected override void Render(Entity member)
@@ -156,6 +160,7 @@ public class InventoryMenu(TargetSelector targetSelect, BattleCalculator battleC
     public void Close()
     {
         _isClosed = true;
+        OnClosed?.Invoke();
     }
     private void RequestTargetSelector
         (TargetResolveResult result, ItemData itemData, IRandomProvider random)

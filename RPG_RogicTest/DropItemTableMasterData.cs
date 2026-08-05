@@ -9,21 +9,20 @@ public static class DropItemTableMasterData
     public static IReadOnlyDictionary<GameId<IDropItemTableId>, List<DropItemData>> DropItemDatabase => _dropItemDatabase;
     private static readonly Dictionary<GameId<IDropItemTableId>, List<DropItemData>> _dropItemDatabase = new();
 
-    public static void Load()
+    public static void Load() //アイテムドロップ率は小数表記
     {
         _dropItemDatabase.Clear();
 
         _dropItemDatabase["drop_table_000"] = new List<DropItemData>
         {
-            new DropItemData("item_test_000", 1, ItemRarity.Common, 100),
-            new DropItemData("item_test_001", 2, ItemRarity.Common, 60),
-            new DropItemData("item_test_001", 3, ItemRarity.Common, 40)
+            new DropItemData(ItemID:"item_test_000", Amount: 1, Rarity: ItemRarity.Common, DropRate: 1f),
+            new DropItemData("item_test_001", 1, ItemRarity.Common, 0.6f),
+            new DropItemData("item_test_001", 1, ItemRarity.Common, 0.4f)
         };
         _dropItemDatabase["drop_table_001"] = new List<DropItemData>
         {
-            new DropItemData("item_test_001", 5, ItemRarity.Common, 70),
-            new DropItemData("item_test_002", 2, ItemRarity.Rare, 20),
-            new DropItemData(null, 0, ItemRarity.Common, 40)
+            new DropItemData("item_test_001", 4, ItemRarity.Common, 0.7f),
+            new DropItemData("item_test_002", 2, ItemRarity.Rare, 0.2f)
         };
 
     }
@@ -45,6 +44,6 @@ public record DropItemData
     GameId<IItemId>? ItemID,
     int Amount,
     ItemRarity Rarity,
-    int DropWeight
+    float DropRate //小数点表記
 );
 

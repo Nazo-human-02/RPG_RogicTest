@@ -5,12 +5,12 @@ using System.Diagnostics.CodeAnalysis;
 public class BattleManager(ProvidorContext providorContext, BattleServices battleServices,
 	BattleRuntimeContext battleRuntimeContext, PartyController partyController, BattleSession session, FieldContext fieldContext)
 {
-	private readonly ProvidorContext _providorContext = providorContext;
 	private readonly BattleServices _battleServices = battleServices;
 	private readonly BattleRuntimeContext _runtimeContext = battleRuntimeContext;
 	private readonly PartyController _partyController = partyController;
 	private readonly BattleSession _battleSession = session;
-	private readonly ConditionContext _baseConditioncontext = 
+    private BattleCommandFlow? _battleCommandFlow = null!;
+    private readonly ConditionContext _baseConditioncontext = 
 		new(true, 0, null, null, partyController, session, fieldContext, providorContext.RandomProvider);
 	private ConditionContext CurrentCondition(Entity? user = null, Entity? target = null)
 		=> _baseConditioncontext with {User = user, Target = target, CurrentTurn = _currentTurn };
@@ -18,10 +18,10 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	private bool _exitDungeon = false;
 	private bool _exitBattle = false;
 
-	private BattleCommandFlow? _battleCommandFlow = null!;
-	private readonly BattleScreenController _screenController = new(providorContext.ScreenProvider);
+
 	private Action<ISelectorRequest>? _selectorOpenRequest;
 	private Action<BattleResult>? _onBattleFinished;
+
 	private BattleState _currentState;
 	private readonly Stack<BattleState> _stateFlow = new();
 	private int _currentTurn = 0;
@@ -96,7 +96,7 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	}
 	private void BattleStart()
 	{
-		_screenController.BattleStart();
+		_battleServices.BattleScreenController.BattleStart();
 		_battleServices.BattleActionQueue.Initialize(_selectorOpenRequest!);
 		_battleCommandFlow = new(_battleServices);
         BattleNotification.Initialize(_battleSession, this);
@@ -148,7 +148,8 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	{
         _currentTurn++;
         BattleNotification.UpDateEntities();
-		_screenController.TurnStart(_currentTurn, TextMasterData.GetEncounterEnemyText(_battleSession.GetAliveEnemy()));
+        _battleServices.BattleScreenController.
+			TurnStart(_currentTurn, TextMasterData.GetEncounterEnemyText(_battleSession.GetAliveEnemy()));
 		BattleNotification.TriggerPhase(Phase.StartTurn, null, null);
 		UpdateState(BattleState.Action);
     }
@@ -158,7 +159,7 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 		{
 			_isActing = true;
 			_battleServices.ActionExecutor.ExecuteAction(currentAction!, this, CurrentCondition());
-			_screenController.UpdatePartyText(_partyController);
+			_battleServices.BattleScreenController.UpdatePartyText(_partyController);
 
 			UpdateState(BattleState.UpdateBattleCondition);
 		}
@@ -193,13 +194,13 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
         Tick();
 
 		UpdateState(BattleState.Action);
-		_screenController.RefreshAndWait();
+		_battleServices.BattleScreenController.RefreshAndWait();
     }
 	private void BattleEnd()
 	{
-        _screenController.Clear(ScreenLayer.Label);
-        _screenController.Clear(ScreenLayer.SubView);
-        _battleResult = CheckBattleResult(_resultType);
+        _battleServices.BattleScreenController.Clear(ScreenLayer.Label);
+        _battleServices.BattleScreenController.Clear(ScreenLayer.SubView);
+        _battleResult = CreateBattleResult(_resultType);
         BattleNotification.TriggerPhase(Phase.EndBattle, null, null); //通知配布と実行
 		UpdateState(BattleState.Action);
     }
@@ -209,19 +210,24 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
         Dispose();
         if (_resultType == BattleResultType.Victory) //報酬処理
         {
-            var reward = _battleServices.BattleRewardCalculator.CalculateReward(_battleSession.Enemies);
+            var reward = 
+				_battleServices.BattleRewardProcessor.ProcessReward
+				(_battleSession.Enemies, _partyController, _baseConditioncontext.FieldContext);
             _partyController.GetReward(reward);
-			_screenController.RefreshAndWait();
+			_battleServices.BattleScreenController.RefreshAndWait();
         }
-        _screenController.UpdatePartyText(_partyController);
+        _battleServices.BattleScreenController.UpdatePartyText(_partyController);
 		_onBattleFinished!.Invoke(_battleResult!);
 		Reset();
     }
 	private void Tick()
 	{
-        foreach (Entity enemy in _battleSession.GetAliveEnemy()) enemy.Notifications.TickNotify();
-        foreach (Entity party in _battleSession.GetAliveParty()) party.Notifications.TickNotify();
-        foreach (Entity entity in _battleSession.GetAllEntity()) entity.ReduceSkillCoolTime();
+		foreach(Entity entity in _battleSession.GetAllEntity())
+		{
+			entity.ReduceSkillCoolTime();
+			if (!entity.Stat.IsDead)
+				entity.Notifications.TickNotify();	
+		}
     }
     private Queue<ActionUnit[]> SortActionQueue(List<ActionUnit[]> actionUnits)
 	{
@@ -243,9 +249,9 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 		return false;
     }
 
-	private BattleResult CheckBattleResult(BattleResultType resultType)
+	private BattleResult CreateBattleResult(BattleResultType resultType)
 	{
-        _screenController.ResultText(resultType);
+        _battleServices.BattleScreenController.ResultText(resultType);
         switch (resultType)
 		{
 			case BattleResultType.Victory:

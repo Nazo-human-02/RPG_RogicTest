@@ -13,6 +13,8 @@ public class BattleStat()
     public ModifierStat EquipmentModStat { get; set; } = new ModifierStat();
     public ModifierStat NotifyModStat { get; set; } = new ModifierStat();
     public ModifierStat TotalModSet => ModifiableStat.GetTotalModifier(EquipmentModStat, NotifyModStat);
+    //報酬系の補正クラス
+    public RewardModifier RewardModifier = new();
     public int TotalHP => TotalModSet.HpMod.TotalValue(MaxHp);
     public int TotalMP => TotalModSet.MpMod.TotalValue(MaxMp);
     public int TotalAtk => TotalModSet.AtkMod.TotalValue(baseStat.Atk);

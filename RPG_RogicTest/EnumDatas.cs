@@ -71,7 +71,7 @@ public enum Phase
     None //該当なし
 }
 public enum NotifyType { None, Counter, Heal, Poison } //必要か分からない
-public enum  ScreenLayer { Header, MainView, SubView, Label, Content, InputArea, None};
+public enum  ScreenLayer { Header, MainView, SubView, Label, Content, InputArea, ErrorArea, None};
 public enum MenuType { Status, Inventory, Equipment, Skill, Save};
 public enum MenuContext { Dungeon, Battle, Shop};
 #endregion

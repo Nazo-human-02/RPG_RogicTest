@@ -16,9 +16,18 @@ public class EquipmentMenu(EquipmentSelector equipmentSelector, IInputProvider i
     private Action? _subCommand;
     private BodyParts _selectedPart = BodyParts.Head;
     public Action<ISelectorRequest>? OpenSelector { get; set; } = null;
-    public void Close() { _isClosed = true; }
+    public Action? OnClosed { get; set; } = null;
+    public void Close()
+    { 
+        _isClosed = true;
+        OnClosed?.Invoke();
+    }
     public void HandleInput(int num) 
     {
+        if(IsClosed)
+        {
+            return;
+        }
         switch (_currentMenuState)
         {
             case MenuState.MainMenu:
@@ -26,9 +35,6 @@ public class EquipmentMenu(EquipmentSelector equipmentSelector, IInputProvider i
                 break;
             case MenuState.Detail:
                 SubMenuCommands(num);
-                break;
-            case MenuState.Selection:
-                EquipSelect(num);
                 break;
         }
     }
@@ -40,7 +46,8 @@ public class EquipmentMenu(EquipmentSelector equipmentSelector, IInputProvider i
             return;
         }
         _commands[num].Execute.Invoke();
-        Render(_currentMember);
+        //RenderDetail(_currentMember.EquipmentController.Equipments[_selectedPart].Equipment);
+        //Render(_currentMember);
     }
     public void OpenMenu(PartyController partyController)
     {
@@ -95,7 +102,7 @@ public class EquipmentMenu(EquipmentSelector equipmentSelector, IInputProvider i
         else if (num == 1)
         {
             _subCommand?.Invoke();
-            RenderDetail(_currentMember.EquipmentController.Equipments[_selectedPart].Equipment);
+            //RenderDetail(_currentMember.EquipmentController.Equipments[_selectedPart].Equipment);
         }
         else
             SelectErrorText(-2);
@@ -131,49 +138,47 @@ public class EquipmentMenu(EquipmentSelector equipmentSelector, IInputProvider i
     }
     private void OpenEquipSelector(PartyController partyController, BodyParts bodyParts)
     {
+        _screen.Clear(ScreenLayer.Content);
+        //_isClosed = true;
         RequestOpenSelector<EquipmentSet> openSelector =
-            new(_equipmentSelector,() => _equipmentSelector.OpenSelector(partyController, bodyParts), OnTryEquip, OnCanceled);
+            new(_equipmentSelector,
+            () => _equipmentSelector.OpenSelector(partyController, bodyParts), 
+            OnSuccess:(success) => OnTryEquip(success, partyController, bodyParts),
+            OnCanceled:(cancel) => OnCanceled(cancel, partyController, bodyParts));
         OpenSelector?.Invoke(openSelector);
-        _currentMenuState = MenuState.Selection;
+        //_currentMenuState = MenuState.Selection;
         //_equipmentSelector.OpenSelector(partyController, bodyParts);
     }
-    private void EquipSelect(int num)
+    private void OnCanceled(SelectionResult<EquipmentSet> cancel, PartyController party, BodyParts bodyParts)
     {
-        _currentMenuState = MenuState.Selection;
-        _equipmentSelector.HandleInput(num, out var result);
-        if (result == null)
-            return;
-        if (result is SelectionSuccess<EquipmentSet> success)
-        {
-            OnTryEquip(success);
-        }
-        else if(result is SelectionCancel<EquipmentSet> cancel)
-        {
-            OnCanceled(cancel);
-        }
+        //_isClosed = false;
+        //Console.WriteLine("_isClosed = false");
+        ValidEquipmentDetail(bodyParts, party);
+        //_currentMenuState = MenuState.Detail;
     }
-    private void OnCanceled(SelectionResult<EquipmentSet> cancel)
+    private void OnTryEquip(SelectionSuccess<EquipmentSet> success, PartyController partyController, BodyParts bodyParts)
     {
-        _currentMenuState = MenuState.Detail;
-    }
-    private void OnTryEquip(SelectionSuccess<EquipmentSet> success)
-    {
+        //_isClosed = false;
+        ValidEquipmentDetail(bodyParts, partyController);
         if (success.Value.Equiped && success.Value.Equipper != null)
         {
-            _screen.Set(ScreenLayer.Content, $"既に{success.Value.Equipment.EquipmentInfo.Name}" +
+            _screen.Append(ScreenLayer.Content, $"既に{success.Value.Equipment.EquipmentInfo.Name}" +
                 $"は{success.Value.Equipper.Name}に装備されています");
+            _screen.RefreshUntil();
+            return;
         }
         bool equipSuccess = _currentMember.EquipmentController.TryEquip(success.Value, out EquipmentSet previousEquipment);
         if (!equipSuccess)
         {
-            _screen.Set(ScreenLayer.Content, "装備の変更に失敗しました");
+            _screen.Set(ScreenLayer.ErrorArea, "装備の変更に失敗しました");
         }
         else
         {
-            _screen.Set(ScreenLayer.Content, $"装備を変更しました。" +
+            _screen.Append(ScreenLayer.Content, $"装備を変更しました。" +
             $"[{previousEquipment?.Equipment.EquipmentInfo.Name}-->" +
             $"{success.Value.Equipment.EquipmentInfo.Name}]");
         }
+        CommandsInitialize(partyController);
         _screen.RefreshUntil();
     }
 }

@@ -16,7 +16,7 @@ public class EquipmentSelector(IScreenProvider screenProvider) : ISelector<Equip
         result = null;
         if (num < 0 || num > _commands.Count)
         {
-            _screen.Set(ScreenLayer.Content, "選択肢の範囲外です");
+            _screen.Set(ScreenLayer.ErrorArea, "選択肢の範囲外です");
             _screen.RefreshUntil();
             return;
         }
@@ -24,7 +24,7 @@ public class EquipmentSelector(IScreenProvider screenProvider) : ISelector<Equip
         return;
     }
 
-    private void Inititalize(PartyController partyController, BodyParts bodyParts)
+    private void SetCommandsDict(PartyController partyController, BodyParts bodyParts)
     {
         _commands.Clear();
         int num = 1;
@@ -43,11 +43,13 @@ public class EquipmentSelector(IScreenProvider screenProvider) : ISelector<Equip
     }
     private SelectionResult<EquipmentSet> MainCommand(EquipmentSet equipmentSet)
     {
+        //SetCommandsDict(party, bodyParts);
+        //Render();
         return new SelectionSuccess<EquipmentSet>(equipmentSet);
     }
     public void OpenSelector(PartyController partyController, BodyParts bodyParts)
     {
-        Inititalize(partyController, bodyParts);
+        SetCommandsDict(partyController, bodyParts);
         Render();
         _isClosed = false;
     }
@@ -63,7 +65,7 @@ public class EquipmentSelector(IScreenProvider screenProvider) : ISelector<Equip
         sb.AppendLine("[装備インベントリ]");
         foreach (var command in _commands)
         {
-            sb.AppendLine(command.Value.Text.ToString());
+            sb.AppendLine(command.Value.Text);
         }
 
         _screen.Set(ScreenLayer.InputArea, sb.ToString());

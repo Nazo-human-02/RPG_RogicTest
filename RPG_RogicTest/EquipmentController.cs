@@ -23,7 +23,8 @@ public class EquipmentController(Entity owner)
 
     public bool TryEquip(EquipmentSet equipmentSet, out EquipmentSet previousEquipment)
     {
-        if (equipmentSet.Equipment == null) throw new ArgumentNullException(nameof(equipmentSet.Equipment));
+        if (equipmentSet.Equipment == null) 
+            throw new ArgumentNullException(nameof(equipmentSet.Equipment));
 
         var part = equipmentSet.Equipment.EquipmentInfo.BodyParts;
         

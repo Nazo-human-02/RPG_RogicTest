@@ -16,6 +16,7 @@ public class SkillMenu(TargetSelector targetSelector, BattleCalculator battleCal
     public bool IsClosed => _isClosed;
     private bool _isClosed = true;
     public Action<ISelectorRequest>? OpenSelector { get; set; } = null;
+    public Action? OnClosed { get; set; } = null;
     public ConditionContext ConditionContext => _conditionContext with {User = _currentMember };
     private ConditionContext _conditionContext = conditionContext;
 
@@ -50,7 +51,7 @@ public class SkillMenu(TargetSelector targetSelector, BattleCalculator battleCal
         }
         else if (num == 1 && _onUseSkill == null)
         {
-            _screen.Append(ScreenLayer.InputArea, "そのスキルは使用できません");
+            _screen.Set(ScreenLayer.ErrorArea, "そのスキルは使用できません");
             _screen.RefreshUntil();
         }
         else if (num == 0)
@@ -71,6 +72,7 @@ public class SkillMenu(TargetSelector targetSelector, BattleCalculator battleCal
     public void Close()
     {
         _isClosed = true;
+        OnClosed?.Invoke();
     }
     public override void ValidMenu(PartyController partyController)
     {

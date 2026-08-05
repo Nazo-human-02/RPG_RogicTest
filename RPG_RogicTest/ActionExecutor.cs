@@ -9,7 +9,7 @@ public class ActionExecutor(BattleCalculator battleCalculator, ILogProvider logP
     private readonly BattleCalculator _battleCalculator = battleCalculator;
     private readonly ILogProvider _logProvider = logProvider;
     private readonly IScreenProvider _screenProvider = screen;
-    private HashSet<Guid> _loggedAction { get; set; } = new HashSet<Guid>();
+    private HashSet<Guid> _loggedAction = new HashSet<Guid>();
     public void ClearLogCache()
     {
         _loggedAction.Clear();

@@ -45,11 +45,11 @@ public abstract class MemberMenuBase(IInputProvider inputProvider, IScreenProvid
     {
         if (errorId == -1)
         {
-            _screen.Set(ScreenLayer.Content, "入力が正しくありません");
+            _screen.Set(ScreenLayer.ErrorArea, "入力が正しくありません");
         }
         else if (errorId == -2)
         {
-            _screen.Set(ScreenLayer.Content, "範囲外の入力です");
+            _screen.Set(ScreenLayer.ErrorArea, "範囲外の入力です");
         }
         _screen.RefreshUntil();
     }

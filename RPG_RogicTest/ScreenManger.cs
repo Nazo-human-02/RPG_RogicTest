@@ -8,9 +8,13 @@ public class ScreenManager(MenuManager menuManager, SelectorManager selectorMana
 {
     private readonly MenuManager _menuManager = menuManager;
     private readonly SelectorManager _selectorManager = selectorManager;
-    private bool _isOpenSelector => _selectorManager.IsSelecting;
-    private bool _isOpenMenu => _menuManager.IsOpenMenu;
-    public bool ValidHandleInput => _isOpenSelector || _isOpenMenu;
+    private bool IsOpenSelector => _selectorManager.IsValid;
+    private bool IsOpenMenu => _menuManager.IsOpenMenu;
+    public bool ValidHandleInput => IsOpenSelector || IsOpenMenu;
+    public void Initialize()
+    {
+        _menuManager.OnReturnSelector = _selectorManager.ReturnPreviousSelector;
+    }
     public void OpenMenu(PartyController partyController, ConditionContext conditionContext)
     {
         _menuManager.OpenMenuSelector(partyController, conditionContext, RequestOpenSelector);
@@ -22,11 +26,11 @@ public class ScreenManager(MenuManager menuManager, SelectorManager selectorMana
 
     public void HandleInput(int num)
     {
-        if(_isOpenSelector)
+        if(IsOpenSelector)
         {
             _selectorManager.HandleInput(num);
         }
-        else if(_isOpenMenu)
+        else if(IsOpenMenu)
         {
             _menuManager.HandleInput(num);
         }

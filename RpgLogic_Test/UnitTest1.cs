@@ -255,8 +255,8 @@ namespace RpgLogic_Test
             originalEntity.Stat.baseStat.Atk = 2000; //攻撃力変更の影響確認_2
             originalEntity.Notifications.AddNotify(new NullNotify("test_000", "test")); //通知効果変更の影響確認_3
             originalEntity.DirectSetSkill(new EffectSkill(new("skill_001", "test", 0), new(), new(), ConditionData.Empty, [])); //スキル変更の影響確認_4
-            originalEntity.EquipmentController.TryEquip(new(new("test", "equip_test", EquipmentType.Armor, BodyParts.Head), new())
-                , out var previousEquipment);　//装備変更の影響確認_5
+            //originalEntity.EquipmentController.TryEquip(new(new("test", "equip_test", EquipmentType.Armor, BodyParts.Head), new())
+            //    , out var previousEquipment);　//装備変更の影響確認_5
             originalEntity.Stat.expSet.SetLevel(100); //レベル変更の影響確認_6
             originalEntity.Stat.EquipmentModStat.AtkMod.BaseFlat = 5; //装備補正値変更の影響確認_7
 

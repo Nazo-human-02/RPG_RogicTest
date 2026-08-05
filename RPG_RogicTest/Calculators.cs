@@ -25,42 +25,6 @@ public class TurnScheduler(IRandomProvider randomProvider)
         return result;
     }
 }
-
-public class BattleRewardCalculator(IRandomProvider random)
-{
-    private readonly IRandomProvider _random = random;
-
-    public BattleResultConfig CalculateReward(IReadOnlyList<EnemyCharacter> enemies)
-    {
-        int totalGold = enemies.Sum(enemy => enemy.DropData.Gold);
-        int totalExp = enemies.Sum(enemy => enemy.DropData.Exp);
-        List<DropItem> dropItems = new List<DropItem>();
-        foreach(var enemy in enemies)
-        {
-            var dropItem = RollDropItem(enemy.DropData.DropTableId);
-            if(dropItem.ItemId != null)
-                dropItems.Add(dropItem);
-        }
-        return new BattleResultConfig(totalExp, totalGold, dropItems);
-    }
-
-    private DropItem RollDropItem(GameId<IDropItemTableId> dropTableId)
-    {
-        var tableData = DropItemTableMasterData.GetDropItemTable(dropTableId);
-        int totalWeight = tableData.Sum(item => item.DropWeight);
-        int rdm = _random.GetRandomInt(0, totalWeight);
-        foreach(var dropItem in tableData)
-        {
-            if(rdm < dropItem.DropWeight)
-            {
-                return new DropItem(dropItem.ItemID, dropItem.Amount, dropItem.Rarity);
-            }
-            rdm -= dropItem.DropWeight;
-        }
-        throw new InvalidOperationException("ドロップアイテムの抽選が正常に実行されませんでした");
-    }
-}
-
 public record DropItem
 (
     GameId<IItemId>? ItemId,

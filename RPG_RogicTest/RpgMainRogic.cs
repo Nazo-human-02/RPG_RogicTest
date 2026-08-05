@@ -9,7 +9,7 @@ public static class RpgMainRogic
         ConsoleLogProvider logProvider = new ConsoleLogProvider(input); //log兼screen
         //ILogProvider log = new LogProvider();
 
-        PartyController partyController = new PartyController(logProvider, logProvider);
+        PartyController partyController = new PartyController(logProvider);
         ProvidorContext providorContext = new(logProvider, random, input, logProvider);
         InitializeGame(logProvider, partyController);
 
@@ -26,26 +26,29 @@ public static class RpgMainRogic
         InventoryMenu inventoryMenu = new(targetSelect, battleCalculator, conditionContext, logProvider, input);
         StatusMenu statusMenu = new(input, logProvider);
         SkillMenu skillMenu = new(targetSelect, battleCalculator, input, logProvider, conditionContext);
-        EquipmentSelector equipmentSelector = new();
+        EquipmentSelector equipmentSelector = new(logProvider);
         EquipmentMenu equipmentMenu = new(equipmentSelector, input, logProvider);
         MenuManager menuManager = new(menuSelector, providorContext, statusMenu, inventoryMenu, skillMenu, equipmentMenu);
+        SelectorManager selectorManager = new();
+        ScreenManager screenManager = new(menuManager, selectorManager);
+        GameManager gameManager = new(providorContext, battleManagerGenerator, dungeonManager, partyController, screenManager);
 
-        GameManager gameManager = new(providorContext, battleManagerGenerator, menuManager, dungeonManager, partyController);
-        gameManager.InitializeDungeonManager();
+        gameManager.MainGameLoop();
+        //gameManager.InitializeDungeonManager();
         //
         
-        while(true)
-        {
-            gameManager.EnterToDungeon();
-            //dungeonManager.EnterDungeon(partyController);
-            bool isContinue = ContinueGame(input, logProvider);
-            if (!isContinue)
-                break;
-            PrepareForNextBattle(partyController);
-        }
+        //while(true)
+        //{
+        //    //gameManager.EnterToDungeon();
+        //    //dungeonManager.EnterDungeon(partyController);
+        //    bool isContinue = ContinueGame(input, logProvider);
+        //    if (!isContinue)
+        //        break;
+        //    PrepareForNextBattle(partyController);
+        //}
 
 
-        logProvider.WriteLog("\nゲームを終了します。プレイありがとうございました！");
+        //logProvider.WriteLog("\nゲームを終了します。プレイありがとうございました！");
 	}
 
     private static void LoadMasterDatas()
