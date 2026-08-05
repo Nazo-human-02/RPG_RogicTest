@@ -13,10 +13,10 @@ public class BattleScreenController(IScreenProvider screen)
         _screen.Set(ScreenLayer.Content, "戦闘開始");
         RefreshAndWait(ScreenLayer.Content);
     }
-    public void TurnStart(int currentTurn, BattleSession battleSession)
+    public void TurnStart(int currentTurn, string monsterText)
     {
         _screen.Set(ScreenLayer.Label, $"-----------{currentTurn}ターン目---------------");
-        _screen.Set(ScreenLayer.SubView, TextMasterData.GetEncounterEnemyText(battleSession.GetAliveEnemy()));
+        _screen.Set(ScreenLayer.SubView, monsterText);
         _screen.Clear(ScreenLayer.Content);
         _screen.RefreshUntil();
     }

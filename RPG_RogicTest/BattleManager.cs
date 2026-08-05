@@ -19,16 +19,13 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	private bool _exitBattle = false;
 
 	private BattleCommandFlow? _battleCommandFlow = null!;
-	private BattleScreenController _screenController = new(providorContext.ScreenProvider);
+	private readonly BattleScreenController _screenController = new(providorContext.ScreenProvider);
 	private Action<ISelectorRequest>? _selectorOpenRequest;
 	private Action<BattleResult>? _onBattleFinished;
 	private BattleState _currentState;
 	private readonly Stack<BattleState> _stateFlow = new();
 	private int _currentTurn = 0;
-	private Stack<Entity> _awaitSelectActors = new();
-	private Stack<Entity> _createdPlayer = new();
 	private BattleResultType _resultType = BattleResultType.ContinueBattle;
-	private bool _isSelecting = false;
 	private bool _isActing = false;
 	private readonly List<ActionUnit[]> _createdActions = new();
 	private BattleResult? _battleResult;
@@ -56,19 +53,16 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	{
         _stateFlow.Clear();
         _createdActions.Clear();
-        _awaitSelectActors.Clear();
-		_createdPlayer.Clear();
         _currentState = BattleState.BattleStart;
 		_currentTurn = 0;
 		_exitBattle = false;
 		_exitDungeon = false;
 		_isActing = false;
-		_isSelecting = false;
 		_battleResult = null;
     }
 	public void NextState() //状態遷移用
 	{
-		if(_isSelecting)
+		if(_battleCommandFlow is not null && _battleCommandFlow.IsBusy)
 			{ return; }
 		switch (_currentState)
 		{
@@ -79,7 +73,7 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 				UpdateBattleCondition(); break;
 
 			case BattleState.CreateActorAction:
-				SelectActor(); break;
+				CreateAction(); break;
 
 			case BattleState.SetActionSchedule:
 				SetActionSchedule(); break;
@@ -124,9 +118,8 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 			{
 				UpdateState(BattleState.Action);
 			}
-			else if(_awaitSelectActors.Count == 0)
+			else if(_createdActions.Count == 0)
 			{
-				_awaitSelectActors = new(_battleSession.GetAllAliveEntity());
 				UpdateState(BattleState.CreateActorAction);
 			}
 			else
@@ -135,43 +128,15 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 			}
 		}
 	}
-	private void SelectActor()
+	private void CreateAction()
 	{
-		if (_awaitSelectActors.TryPop(out var actor))
-		{
-            if(actor is CharacterBase chara) _createdPlayer.Push(chara);
-			CreateAction(actor);
-            UpdateState(BattleState.CreateActorAction);
-		}
-		else
-			UpdateState(BattleState.TurnStart);
+		_battleCommandFlow!.StartSelect(_battleSession.GetAllAliveEntity(), CurrentCondition(), 
+			(actions) => OnCompleted(actions));
 	}
-
-	private void CreateAction(Entity entity)
+	private void OnCompleted(List<ActionUnit[]> actionUnits)
 	{
-		_isSelecting = true;
-		_battleCommandFlow!.StartSelect(entity, CurrentCondition(user:entity), 
-			(action) => OnSelected(action), () => OnCanceled());
-	}
-	private void OnSelected(ActionUnit[] actionUnits)
-	{
-		_isSelecting = false;
-		_createdActions.Add(actionUnits);
-		UpdateState(BattleState.CreateActorAction);
-	}
-	private void OnCanceled() //前のプレイヤーキャラの選択に戻りたい
-	{
-		if(_createdPlayer.TryPop(out var previousEntity))
-		{
-			if(_createdPlayer.TryPeek(out var entity))
-			{
-				_awaitSelectActors.Push(previousEntity);
-				CreateAction(entity);
-				return;
-			}
-            _createdPlayer.Push(previousEntity);
-			CreateAction(previousEntity);
-		}
+		_createdActions.AddRange(actionUnits);
+		UpdateState(BattleState.SetActionSchedule);
 	}
 	private void SetActionSchedule()
 	{
@@ -183,7 +148,7 @@ public class BattleManager(ProvidorContext providorContext, BattleServices battl
 	{
         _currentTurn++;
         BattleNotification.UpDateEntities();
-		_screenController.TurnStart(_currentTurn, _battleSession);
+		_screenController.TurnStart(_currentTurn, TextMasterData.GetEncounterEnemyText(_battleSession.GetAliveEnemy()));
 		BattleNotification.TriggerPhase(Phase.StartTurn, null, null);
 		UpdateState(BattleState.Action);
     }

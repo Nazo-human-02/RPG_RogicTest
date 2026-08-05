@@ -7,165 +7,213 @@ using System.Threading.Tasks;
 
 public class BattleCommandFlow
 {
+    public bool IsBusy => _isSelecting;
     private readonly BattleServices _battleServices;
 
-    private CommandSelectionContext? _actionSourceInfo;
-
-    private Action<ActionUnit[]>? _onComplete;
-    private Action? _onCancelToPreviousActor;
-    private Stack<SelectStep> _selectFlow = new();
+    private Action<List<ActionUnit[]>>? _onComplete;
+    private readonly Stack<Entity> _selectedHistory = new();
+    private Stack<Entity> _awaitForSelectActors = new();
+    private readonly List<ActionUnit[]> _createdActions = new();
+    private bool _isSelecting = false;
 
     public BattleCommandFlow(BattleServices battleServices)
     {
         _battleServices = battleServices;
     }
-    public void StartSelect(Entity actor, ConditionContext conditionContext, 
-        Action<ActionUnit[]> onComplete, Action onCanceled)
+    public void StartSelect(List<Entity> actors, ConditionContext conditionContext, 
+        Action<List<ActionUnit[]>> onComplete)
     {
-        _actionSourceInfo = new(actor);
+        _awaitForSelectActors = new(actors);
         _onComplete = onComplete;
-        _onCancelToPreviousActor = onCanceled;
-        _selectFlow.Clear();
-        SelectCommand(conditionContext);
-    }
+        _selectedHistory.Clear();
+        _createdActions.Clear();
 
-    private void SelectCommand(ConditionContext conditionContext)
+        _isSelecting = true;
+
+        SelectActor(conditionContext);
+    }
+    private void SelectActor(ConditionContext conditionContext)
     {
-        if (_actionSourceInfo!.Actor is CharacterBase)
+        if (_awaitForSelectActors.TryPop(out var actor))
         {
-            _selectFlow.Push(SelectStep.SelectCommand);
-            _battleServices.BattleActionQueue.CreatePlayerCommand
-                (conditionContext, (success) => OnCommandSelected(success, conditionContext), _onCancelToPreviousActor!);
+            if (actor is CharacterBase chara)
+                _selectedHistory.Push(chara);
+            CreateAction(actor, conditionContext);
         }
-        else if (_actionSourceInfo.Actor is EnemyCharacter)
+        else
+        {
+            _isSelecting = false;
+            _onComplete?.Invoke(_createdActions);
+        }
+    }
+    private void CreateAction(Entity entity, ConditionContext conditionContext)
+    {
+        CommandSelectionContext selectionContext = new(entity, conditionContext with { User = entity });
+        SelectCommand(selectionContext);
+    }
+    private void SelectCommand(CommandSelectionContext selectionContext)
+    {
+        if (selectionContext.Actor is CharacterBase)
+        {
+            selectionContext.SelectFlow.Push(SelectStep.SelectCommand);
+            _battleServices.BattleActionQueue.CreatePlayerCommand
+                (selectionContext.ConditionContext, 
+                (success) => OnCommandSelected(success, selectionContext),
+                () => OnReturnPreviousActor(selectionContext.ConditionContext));
+        }
+        else if (selectionContext.Actor is EnemyCharacter)
         {
             //どうしようかな
         }
     }
-    private void OnCommandSelected(ActionType actionType, ConditionContext conditionContext)
+    private void OnCommandSelected(ActionType actionType, CommandSelectionContext selectionContext)
     {
-        _actionSourceInfo!.SetActionType(actionType);
+        selectionContext.SetActionType(actionType);
         switch (actionType)
         {
             case ActionType.Attack:
-                OnDefaultAttack(conditionContext);
+                OnDefaultAttack(selectionContext);
                 break;
 
             case ActionType.Skill:
-                SelectSkill(conditionContext);
+                SelectSkill(selectionContext);
                 break;
 
             case ActionType.Guard:
-                OnGuard(conditionContext);
+                OnGuard(selectionContext);
                 break;
 
             case ActionType.Escape:
-                OnEscape(conditionContext);
+                OnEscape(selectionContext);
                 break;
 
             case ActionType.Item:
-                SelectItem(conditionContext);
+                SelectItem(selectionContext);
                 break;
         }
     }
-    private void SelectSkill(ConditionContext conditionContext)
+    private void SelectSkill(CommandSelectionContext selectionContext)
     {
-        _selectFlow.Push(SelectStep.SelectSkill);
+        selectionContext.SelectFlow.Push(SelectStep.SelectSkill);
         _battleServices.BattleActionQueue.SelectSkill
-            (conditionContext,(select) => OnSelectedSkill(select, conditionContext), () => OnCanceled(conditionContext));
+            (selectionContext.ConditionContext,
+            (select) => OnSelectedSkill(select, selectionContext), 
+            () => OnCanceled(selectionContext));
     }
-    private void SelectItem(ConditionContext conditionContext)
+    private void SelectItem(CommandSelectionContext selectionContext)
     {
-        _selectFlow.Push(SelectStep.SelectItem);
+        selectionContext.SelectFlow.Push(SelectStep.SelectItem);
         _battleServices.BattleActionQueue.SelectItem
-            (conditionContext,(select) => OnSelectedItem(select, conditionContext), () => OnCanceled(conditionContext));
+            (selectionContext.ConditionContext,(select) => OnSelectedItem(select, selectionContext),
+            () => OnCanceled(selectionContext));
     }
-    private void SelectTargets(ConditionContext conditionContext)
+    private void SelectTargets(CommandSelectionContext selectionContext)
     {
-        _selectFlow.Push(SelectStep.SelectTargets);
+        selectionContext.SelectFlow.Push(SelectStep.SelectTargets);
+        selectionContext.CheckResolveResult();
         _battleServices.BattleActionQueue.SelectTargets
-            (_actionSourceInfo!.TargetResolveResult!, OnSelectedTarget, () => OnCanceled(conditionContext));
+            (selectionContext.TargetResolveResult,
+            (targets) => OnSelectedTarget(targets, selectionContext), 
+            () => OnCanceled(selectionContext));
     }
-    private void OnCanceled(ConditionContext conditionContext)
+    private void OnCanceled(CommandSelectionContext selectionContext)
     {
-        if(_selectFlow.TryPop(out _))
+        if(selectionContext.SelectFlow.TryPop(out _))
         {
-            if(_selectFlow.TryPeek(out SelectStep step))
+            if(selectionContext.SelectFlow.TryPeek(out SelectStep step))
             {
                 switch (step)
                 {
                     case SelectStep.SelectCommand:
-                        SelectCommand(conditionContext); break;
+                        SelectCommand(selectionContext); break;
                     case SelectStep.SelectSkill:
-                        SelectSkill(conditionContext); break;
+                        SelectSkill(selectionContext); break;
                     case SelectStep.SelectItem:
-                        SelectItem(conditionContext); break;
+                        SelectItem(selectionContext); break;
                     case SelectStep.SelectTargets:
-                        SelectTargets(conditionContext); break;
+                        SelectTargets(selectionContext); break;
                 }
                 return;
             }
         }
-        _onCancelToPreviousActor?.Invoke();
+        OnReturnPreviousActor(selectionContext.ConditionContext);
     }
-    private void OnDefaultAttack(ConditionContext conditionContext)
+    private void OnDefaultAttack(CommandSelectionContext selectionContext)
     {
-        Skill? defaultSkill = _actionSourceInfo!.Actor.DefaultSkill;
-        var result = (defaultSkill is null) ?
+        Skill? defaultSkill = selectionContext.Actor.DefaultSkill;
+        var result = (defaultSkill is null) ? 
             TargetResolver.GetTargetResolve
-            (ConditionData.Default, conditionContext, TargetData.SingleTarget) :
+            (ConditionData.Default, selectionContext.ConditionContext, TargetData.SingleTarget) :
             TargetResolver.GetTargetResolve
-            (defaultSkill.ConditionData, conditionContext, defaultSkill.TargetData);
-        _actionSourceInfo.SetResolveResult(result);
-        _actionSourceInfo.SetActionSource(ActionSource.Default(defaultSkill));
-        SelectTargets(conditionContext);
+            (defaultSkill.ConditionData, selectionContext.ConditionContext, defaultSkill.TargetData);
+        selectionContext.SetResolveResult(result);
+        selectionContext.SetActionSource(ActionSource.Default(defaultSkill));
+        SelectTargets(selectionContext);
     }
-    private void OnGuard(ConditionContext conditionContext)
+    private void OnGuard(CommandSelectionContext selectionContext)
     {
         var result = TargetResolver.GetTargetResolve
-            (ConditionData.Empty, conditionContext, TargetData.Self);
-        _actionSourceInfo!.SetResolveResult(result);
-        _actionSourceInfo.SetActionSource(ActionSource.Default());
-        SelectTargets(conditionContext);
+            (ConditionData.Empty, selectionContext.ConditionContext, TargetData.Self);
+        selectionContext.SetResolveResult(result);
+        selectionContext.SetActionSource(ActionSource.Default());
+        SelectTargets(selectionContext);
     }
-    private void OnEscape(ConditionContext conditionContext)
+    private void OnEscape(CommandSelectionContext selectionContext)
     {
         var result = TargetResolver.GetTargetResolve
-            (ConditionData.Empty, conditionContext, TargetData.Self);
-        _actionSourceInfo!.SetResolveResult(result);
-        _actionSourceInfo.SetActionSource(ActionSource.Default());
-        SelectTargets(conditionContext);
+            (ConditionData.Empty, selectionContext.ConditionContext, TargetData.Self);
+        selectionContext.SetResolveResult(result);
+        selectionContext.SetActionSource(ActionSource.Default());
+        SelectTargets(selectionContext);
     }
-    private void OnSelectedSkill(Skill skill, ConditionContext conditionContext)
+    private void OnSelectedSkill(Skill skill, CommandSelectionContext selectionContext)
     {
-        _actionSourceInfo!.SetSkill(skill);
+        selectionContext.SetSkill(skill);
         var result =
-            TargetResolver.GetTargetResolve(skill.ConditionData, conditionContext, skill.TargetData);
-        _actionSourceInfo.SetResolveResult(result);
-        _actionSourceInfo.SetActionSource(ActionSource.Default(skill: skill));
-        SelectTargets(conditionContext);
+            TargetResolver.GetTargetResolve(skill.ConditionData, selectionContext.ConditionContext, skill.TargetData);
+        selectionContext.SetResolveResult(result);
+        selectionContext.SetActionSource(ActionSource.Default(skill: skill));
+        SelectTargets(selectionContext);
     }
-    private void OnSelectedItem(SelectItemData selectItemData, ConditionContext conditionContext)
+    private void OnSelectedItem(SelectItemData selectItemData, CommandSelectionContext selectionContext)
     {
         UseItemInfo itemInfo = new() { ItemId = selectItemData.ItemId }; //アイテム関連はあとから要整理
-        _actionSourceInfo!.SetItem(itemInfo);
-        _actionSourceInfo.SetResolveResult(selectItemData.TargetResolveResult);
-        _actionSourceInfo.SetActionSource(ActionSource.Default(itemId: selectItemData.ItemId));
-        SelectTargets(conditionContext);
+        selectionContext.SetItem(itemInfo);
+        selectionContext.SetResolveResult(selectItemData.TargetResolveResult);
+        selectionContext.SetActionSource(ActionSource.Default(itemId: selectItemData.ItemId));
+        SelectTargets(selectionContext);
     }
-    private void OnSelectedTarget(List<Entity> targets)
+    private void OnSelectedTarget(List<Entity> targets, CommandSelectionContext selectionContext)
     {
+        selectionContext.CheckActionSource();
         ActionUnit[] actions = ActionUnitCreator.GetActionUnit
-            (_actionSourceInfo!.ActionType, _actionSourceInfo.ActionSource!,
-            _actionSourceInfo.Actor, targets, _actionSourceInfo.Skill, _actionSourceInfo.ItemInfo);
+            (selectionContext.ActionType, selectionContext.ActionSource,
+            selectionContext.Actor, targets, selectionContext.Skill, selectionContext.ItemInfo);
 
-        _onComplete!.Invoke(actions);
+        _createdActions.Add(actions);
+        SelectActor(selectionContext.ConditionContext);
+    }
+    private void OnReturnPreviousActor(ConditionContext conditionContext) //前のプレイヤーキャラの選択に戻りたい
+    {
+        if (_selectedHistory.TryPop(out var previousEntity))
+        {
+            if (_selectedHistory.TryPeek(out var entity))
+            {
+                _awaitForSelectActors.Push(previousEntity);
+                CreateAction(entity, conditionContext);
+                return;
+            }
+            _selectedHistory.Push(previousEntity);
+            CreateAction(previousEntity, conditionContext);
+        }
     }
 }
 
-public class CommandSelectionContext(Entity actor)
+public class CommandSelectionContext(Entity actor, ConditionContext conditionContext)
 {
+    public readonly Stack<SelectStep> SelectFlow = new();
     public Entity Actor = actor;
+    public ConditionContext ConditionContext = conditionContext;
     public ActionType ActionType { get; private set; }
     public TargetResolveResult? TargetResolveResult { get; private set; }
     public Skill? Skill { get; private set; }
